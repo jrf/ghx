@@ -802,6 +802,7 @@ dependencies = [
 [[package]]
 name = "mdr"
 version = "0.1.0"
+source = "git+https://github.com/jrf/mdr#7f94bb5ab3b1f79abeb8c74388fbaefbbb97222b"
 dependencies = [
  "crossterm 0.28.1",
  "dirs",

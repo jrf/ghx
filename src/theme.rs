@@ -1,9 +1,10 @@
 use ratatui::style::Color;
 use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::sync::RwLock;
 
-static THEME: OnceLock<Theme> = OnceLock::new();
+static THEME: RwLock<Option<Theme>> = RwLock::new(None);
 
+#[derive(Clone)]
 #[allow(dead_code)]
 pub struct Theme {
     pub bg: Color,
@@ -18,13 +19,102 @@ pub struct Theme {
     pub heading: Color,
 }
 
-pub fn current() -> &'static Theme {
-    THEME.get_or_init(|| {
-        let home = std::env::var("HOME").unwrap_or_default();
-        let themes_dir = format!("{home}/.config/ghx/themes");
-        let name = read_config_theme(&home).unwrap_or_else(|| "tokyo-night-moon".into());
-        load_theme_file(&themes_dir, &name).unwrap_or_else(|| fallback())
-    })
+pub fn current() -> Theme {
+    let guard = THEME.read().unwrap();
+    guard.clone().unwrap_or_else(|| fallback())
+}
+
+pub fn set_theme(theme: Theme) {
+    let mut guard = THEME.write().unwrap();
+    *guard = Some(theme);
+}
+
+pub fn init() {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let name = read_config_theme(&home).unwrap_or_else(|| "tokyo-night-moon".into());
+    let themes = load_all_themes();
+    let theme = themes
+        .iter()
+        .find(|(n, _)| n == &name)
+        .map(|(_, t)| t.clone())
+        .unwrap_or_else(fallback);
+    set_theme(theme);
+}
+
+pub fn load_all_themes() -> Vec<(String, Theme)> {
+    let mut themes = Vec::new();
+
+    // Embedded themes from the themes/ directory at compile time
+    let embedded: &[(&str, &str)] = &[
+        ("classic", include_str!("../themes/classic.toml")),
+        ("fire", include_str!("../themes/fire.toml")),
+        ("matrix", include_str!("../themes/matrix.toml")),
+        ("monochrome", include_str!("../themes/monochrome.toml")),
+        ("ocean", include_str!("../themes/ocean.toml")),
+        ("purple", include_str!("../themes/purple.toml")),
+        ("sunset", include_str!("../themes/sunset.toml")),
+        ("synthwave", include_str!("../themes/synthwave.toml")),
+        ("tokyo-night-moon", include_str!("../themes/tokyo-night-moon.toml")),
+    ];
+
+    for (name, content) in embedded {
+        if let Some(theme) = parse_theme(content) {
+            themes.push((name.to_string(), theme));
+        }
+    }
+
+    // Load user themes from ~/.config/ghx/themes/ (override embedded ones)
+    let home = std::env::var("HOME").unwrap_or_default();
+    let user_dir = format!("{home}/.config/ghx/themes");
+    if let Ok(entries) = std::fs::read_dir(&user_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("toml") {
+                if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
+                    if let Ok(content) = std::fs::read_to_string(&path) {
+                        if let Some(theme) = parse_theme(&content) {
+                            // Remove existing embedded theme with same name
+                            themes.retain(|(n, _)| n != name);
+                            themes.push((name.to_string(), theme));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    themes.sort_by(|(a, _), (b, _)| a.cmp(b));
+    themes
+}
+
+pub fn configured_theme_name() -> String {
+    let home = std::env::var("HOME").unwrap_or_default();
+    read_config_theme(&home).unwrap_or_else(|| "tokyo-night-moon".into())
+}
+
+pub fn save_config_theme(name: &str) {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let dir = format!("{home}/.config/ghx");
+    let path = format!("{dir}/config.toml");
+
+    // Read existing config, replace or add theme line
+    let content = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut lines: Vec<String> = Vec::new();
+    let mut found = false;
+    for line in content.lines() {
+        if line.trim().starts_with("theme") {
+            lines.push(format!("theme = \"{name}\""));
+            found = true;
+        } else {
+            lines.push(line.to_string());
+        }
+    }
+    if !found {
+        lines.push(format!("theme = \"{name}\""));
+    }
+
+    let _ = std::fs::create_dir_all(&dir);
+    let _ = std::fs::write(&path, lines.join("\n") + "\n");
 }
 
 fn fallback() -> Theme {
@@ -60,14 +150,7 @@ fn read_config_theme(home: &str) -> Option<String> {
     None
 }
 
-fn load_theme_file(themes_dir: &str, name: &str) -> Option<Theme> {
-    let path = format!("{themes_dir}/{name}.toml");
-    let content = std::fs::read_to_string(path).ok()?;
-    parse_theme(&content)
-}
-
 fn parse_theme(content: &str) -> Option<Theme> {
-    // Parse [colors] section into name → hex color map
     let mut colors: HashMap<&str, Color> = HashMap::new();
     let mut ui: HashMap<&str, &str> = HashMap::new();
     let mut section = "";
@@ -102,13 +185,11 @@ fn parse_theme(content: &str) -> Option<Theme> {
         }
     }
 
-    // Resolve a ui key: ui maps name → color name, colors maps color name → Color
     let resolve = |ui_key: &str| -> Option<Color> {
         let color_name = ui.get(ui_key)?;
         colors.get(color_name).copied()
     };
 
-    // Also need a direct color lookup for things not in [ui]
     let color = |name: &str| -> Option<Color> { colors.get(name).copied() };
 
     Some(Theme {

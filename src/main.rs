@@ -24,6 +24,8 @@ use ui::*;
 fn main() -> anyhow::Result<()> {
     let context_repo = gh::current_repo();
 
+    theme::init();
+
     enable_raw_mode()?;
     io::stdout().execute(EnterAlternateScreen)?;
     let mut terminal = ratatui::init();
@@ -62,6 +64,33 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> anyhow::Result<()> {
             // Help overlay — any key dismisses
             if app.show_help {
                 app.show_help = false;
+                continue;
+            }
+
+            // Theme picker input
+            if app.show_theme_picker {
+                match key.code {
+                    KeyCode::Char('j') | KeyCode::Down => {
+                        let next = (app.theme_index + 1).min(app.themes.len().saturating_sub(1));
+                        app.theme_picker_select(next);
+                    }
+                    KeyCode::Char('k') | KeyCode::Up => {
+                        let prev = app.theme_index.saturating_sub(1);
+                        app.theme_picker_select(prev);
+                    }
+                    KeyCode::Char('g') | KeyCode::Home => {
+                        app.theme_picker_select(0);
+                    }
+                    KeyCode::Char('G') | KeyCode::End => {
+                        let last = app.themes.len().saturating_sub(1);
+                        app.theme_picker_select(last);
+                    }
+                    KeyCode::Enter => app.theme_picker_confirm(),
+                    KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('t') => {
+                        app.theme_picker_cancel();
+                    }
+                    _ => {}
+                }
                 continue;
             }
 
@@ -131,6 +160,7 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> anyhow::Result<()> {
                     app.should_quit = true
                 }
                 KeyCode::Char('?') => app.show_help = true,
+                KeyCode::Char('t') => app.open_theme_picker(),
                 KeyCode::Char('o') => app.on_open(),
                 KeyCode::Esc | KeyCode::Backspace => {
                     if app.screen != Screen::Home {
@@ -289,6 +319,10 @@ fn draw(f: &mut Frame, app: &mut App) {
     if app.show_help {
         draw_help(f, area);
     }
+
+    if app.show_theme_picker {
+        draw_theme_picker(f, app, area);
+    }
 }
 
 fn draw_tabs(f: &mut Frame, app: &App, area: Rect) {
@@ -427,6 +461,7 @@ fn draw_help(f: &mut Frame, area: Rect) {
             ("/", "Filter repos / edit search"),
             ("m", "Mark notification read"),
             ("r", "Read in mdr (detail view)"),
+            ("t", "Switch theme"),
             ("?", "Toggle this help"),
             ("q", "Quit / go back"),
         ]),
@@ -489,4 +524,82 @@ fn draw_help(f: &mut Frame, area: Rect) {
         }
         f.render_widget(line.clone(), Rect::new(inner.x, ly, inner.width, 1));
     }
+}
+
+fn draw_theme_picker(f: &mut Frame, app: &App, area: Rect) {
+    let count = app.themes.len();
+    let width = 40u16;
+    let height = (count as u16 + 4).min(area.height.saturating_sub(4));
+
+    let x = area.x + (area.width.saturating_sub(width)) / 2;
+    let y = area.y + (area.height.saturating_sub(height)) / 2;
+    let popup = Rect::new(x, y, width.min(area.width), height.min(area.height));
+
+    // Clear popup area
+    let bg_style = Style::default().bg(bg()).fg(bg());
+    let buf = f.buffer_mut();
+    for py in popup.y..popup.y + popup.height {
+        for px in popup.x..popup.x + popup.width {
+            if px < area.x + area.width && py < area.y + area.height {
+                let cell = &mut buf[(px, py)];
+                cell.set_char(' ');
+                cell.set_style(bg_style);
+            }
+        }
+    }
+
+    // Draw border
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(accent()))
+        .title(Span::styled(" Theme ", style_bold().fg(accent())))
+        .style(Style::default().bg(bg()));
+    let inner = block.inner(popup);
+    f.render_widget(block, popup);
+
+    // Visible window for scrolling
+    let visible = inner.height.saturating_sub(2) as usize; // reserve 2 lines for status
+    let scroll_offset = if app.theme_index >= visible {
+        app.theme_index - visible + 1
+    } else {
+        0
+    };
+
+    // Render theme list
+    for (i, (name, _)) in app.themes.iter().enumerate().skip(scroll_offset) {
+        let row = i - scroll_offset;
+        if row >= visible {
+            break;
+        }
+        let ly = inner.y + row as u16;
+
+        let display = name.replace('-', " ");
+        let line = if i == app.theme_index {
+            Line::from(vec![
+                Span::styled("  › ", style_accent()),
+                Span::styled(
+                    format!("{display:<width$}", width = (inner.width as usize).saturating_sub(5)),
+                    style_selected().bg(border()),
+                ),
+            ])
+        } else {
+            Line::from(vec![
+                Span::raw("    "),
+                Span::styled(display, style_normal()),
+            ])
+        };
+        f.render_widget(line, Rect::new(inner.x, ly, inner.width, 1));
+    }
+
+    // Status line at bottom of popup
+    let status_y = inner.y + inner.height - 1;
+    let status = Line::from(vec![
+        Span::styled(" j/k", style_accent()),
+        Span::styled(":select  ", style_dim()),
+        Span::styled("enter", style_accent()),
+        Span::styled(":ok  ", style_dim()),
+        Span::styled("esc", style_accent()),
+        Span::styled(":cancel", style_dim()),
+    ]);
+    f.render_widget(status, Rect::new(inner.x, status_y, inner.width, 1));
 }

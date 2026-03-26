@@ -1,4 +1,5 @@
 use crate::gh;
+use crate::theme::{self, Theme};
 use crate::ui::notif_list::NotifList;
 use crate::ui::repo_detail::RepoDetailView;
 use crate::ui::repo_list::RepoList;
@@ -29,10 +30,22 @@ pub struct App {
     pub should_quit: bool,
     pub show_help: bool,
     pub tick: usize,
+    // Theme picker
+    pub show_theme_picker: bool,
+    pub themes: Vec<(String, Theme)>,
+    pub theme_index: usize,
+    pub original_theme_index: usize,
 }
 
 impl App {
     pub fn new(context_repo: Option<String>) -> Self {
+        let themes = theme::load_all_themes();
+        let configured = theme::configured_theme_name();
+        let theme_index = themes
+            .iter()
+            .position(|(n, _)| n == &configured)
+            .unwrap_or(0);
+
         Self {
             screen: Screen::Home,
             tab: Tab::Repos,
@@ -45,6 +58,10 @@ impl App {
             should_quit: false,
             show_help: false,
             tick: 0,
+            show_theme_picker: false,
+            themes,
+            theme_index,
+            original_theme_index: 0,
         }
     }
 
@@ -58,6 +75,30 @@ impl App {
             self.repo_detail = Some(RepoDetailView::new(name));
             self.screen = Screen::RepoDetail;
         }
+    }
+
+    pub fn open_theme_picker(&mut self) {
+        self.original_theme_index = self.theme_index;
+        self.show_theme_picker = true;
+    }
+
+    pub fn theme_picker_select(&mut self, index: usize) {
+        if index < self.themes.len() {
+            self.theme_index = index;
+            theme::set_theme(self.themes[index].1.clone());
+        }
+    }
+
+    pub fn theme_picker_confirm(&mut self) {
+        self.show_theme_picker = false;
+        let name = &self.themes[self.theme_index].0;
+        theme::save_config_theme(name);
+    }
+
+    pub fn theme_picker_cancel(&mut self) {
+        self.theme_index = self.original_theme_index;
+        theme::set_theme(self.themes[self.theme_index].1.clone());
+        self.show_theme_picker = false;
     }
 
     pub fn next_tab(&mut self) {

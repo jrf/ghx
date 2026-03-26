@@ -167,7 +167,7 @@ impl SearchView {
                 Span::styled(&repo.full_name, style_normal()),
             ];
             if repo.is_private {
-                spans.push(Span::styled(" [private]", style_purple()));
+                spans.push(Span::styled(" ⊝", style_purple()));
             }
             if repo.star_count > 0 {
                 spans.push(Span::styled(format!(" *{}", repo.star_count), style_dim()));

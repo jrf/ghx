@@ -11,6 +11,7 @@ yellow = "#ffff00"
 red = "#ff0000"
 cyan = "#00ffcc"
 blue = "#6699ff"
+magenta = "#cc66ff"
 
 [ui]
 border = "fg_muted"

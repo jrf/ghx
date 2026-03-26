@@ -12,6 +12,7 @@ green = "#00ff41"
 green_dim = "#00cc00"
 cyan = "#66ddaa"
 blue = "#77bb99"
+magenta = "#88cc77"
 
 [ui]
 border = "fg_muted"

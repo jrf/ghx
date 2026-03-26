@@ -163,6 +163,32 @@ impl RepoList {
         }
     }
 
+    pub fn move_to_first(&mut self) {
+        if !self.filtered_indices.is_empty() {
+            self.state.select(Some(0));
+        }
+    }
+
+    pub fn move_to_last(&mut self) {
+        let len = self.filtered_indices.len();
+        if len > 0 {
+            self.state.select(Some(len - 1));
+        }
+    }
+
+    pub fn page_down(&mut self, page_size: usize) {
+        if let Some(i) = self.state.selected() {
+            let last = self.filtered_indices.len().saturating_sub(1);
+            self.state.select(Some((i + page_size).min(last)));
+        }
+    }
+
+    pub fn page_up(&mut self, page_size: usize) {
+        if let Some(i) = self.state.selected() {
+            self.state.select(Some(i.saturating_sub(page_size)));
+        }
+    }
+
     pub fn source_labels(&self) -> Vec<String> {
         let mut labels = vec!["My Repos".into(), "Starred".into()];
         for org in &self.orgs {

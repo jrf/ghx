@@ -289,7 +289,7 @@ impl RepoDetailView {
 
         let mut badges = Vec::new();
         if detail.is_private {
-            badges.push(Span::styled(" [private]", style_dim()));
+            badges.push(Span::styled(" ⊝", style_dim()));
         }
         if detail.is_fork {
             badges.push(Span::styled(" [fork]", style_dim()));

@@ -311,12 +311,11 @@ fn draw(f: &mut Frame, app: &mut App) {
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    // Layout: tabs, divider, content, status bar
+    // Layout: tabs, divider, content
     let chunks = Layout::vertical([
         Constraint::Length(1), // tab bar
         Constraint::Length(1), // divider
         Constraint::Min(1),   // content
-        Constraint::Length(1), // status bar
     ])
     .split(inner);
 
@@ -327,7 +326,6 @@ fn draw(f: &mut Frame, app: &mut App) {
         chunks[1],
     );
     draw_content(f, app, chunks[2]);
-    draw_status(f, app, chunks[3]);
 
     if app.show_help {
         draw_help(f, area);
@@ -338,10 +336,19 @@ fn draw(f: &mut Frame, app: &mut App) {
     }
 }
 
+fn status_prefix() -> Vec<Span<'static>> {
+    vec![
+        Span::styled(" ghx", style_bold().fg(accent())),
+        Span::styled(" │ ", style_dim()),
+        Span::styled("?:help", style_dim()),
+        Span::styled(" │ ", style_dim()),
+    ]
+}
+
 fn draw_tabs(f: &mut Frame, app: &App, area: Rect) {
     if app.screen == Screen::RepoDetail {
         if let Some(ref detail) = app.repo_detail {
-            let mut spans = vec![Span::raw(" ")];
+            let mut spans = status_prefix();
             for tab in ui::repo_detail::RepoTab::ALL {
                 if tab == detail.tab {
                     spans.push(Span::styled(
@@ -368,7 +375,7 @@ fn draw_tabs(f: &mut Frame, app: &App, area: Rect) {
         Tab::Notifications => titles.len() - 1,
     };
 
-    let mut spans = vec![Span::raw(" ")];
+    let mut spans = status_prefix();
     for (i, title) in titles.iter().enumerate() {
         if i == active {
             spans.push(Span::styled(
@@ -441,23 +448,6 @@ fn draw_content(f: &mut Frame, app: &mut App, area: Rect) {
     }
 }
 
-fn draw_status(f: &mut Frame, app: &App, area: Rect) {
-    let sep = Span::styled(" │ ", style_dim());
-
-    let mut spans = vec![
-        Span::styled(" ghx", style_bold().fg(accent())),
-        sep.clone(),
-    ];
-
-    if let Some(ref repo) = app.selected_repo {
-        spans.push(Span::styled(repo.as_str(), style_normal()));
-        spans.push(sep.clone());
-    }
-
-    spans.push(Span::styled("?:help", style_dim()));
-
-    f.render_widget(Line::from(spans), area);
-}
 
 fn draw_help(f: &mut Frame, area: Rect) {
     let help_lines = vec![

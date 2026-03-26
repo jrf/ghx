@@ -128,6 +128,32 @@ impl RepoDetailView {
         }
     }
 
+    pub fn move_to_first(&mut self) {
+        if self.current_list_len() > 0 {
+            self.list_state.select(Some(0));
+        }
+    }
+
+    pub fn move_to_last(&mut self) {
+        let len = self.current_list_len();
+        if len > 0 {
+            self.list_state.select(Some(len - 1));
+        }
+    }
+
+    pub fn page_down_list(&mut self, page_size: usize) {
+        if let Some(i) = self.list_state.selected() {
+            let last = self.current_list_len().saturating_sub(1);
+            self.list_state.select(Some((i + page_size).min(last)));
+        }
+    }
+
+    pub fn page_up_list(&mut self, page_size: usize) {
+        if let Some(i) = self.list_state.selected() {
+            self.list_state.select(Some(i.saturating_sub(page_size)));
+        }
+    }
+
     fn load_all(&mut self, repo: String) {
         self.loading = true;
         self.issues_loading = true;
@@ -298,7 +324,7 @@ impl RepoDetailView {
         lines.push(Line::default());
 
         if let Some(ref readme) = self.readme_raw {
-            let mdr_theme = mdr::theme::default_theme();
+            let mdr_theme = ghx_to_mdr_theme();
             let styled = mdr::markdown::parse_markdown(readme, mdr_theme, area.width.saturating_sub(2));
             for sl in &styled {
                 lines.push(sl.line.clone());
@@ -414,6 +440,23 @@ impl RepoDetailView {
             .highlight_symbol("> ");
 
         f.render_stateful_widget(list, area, &mut self.list_state);
+    }
+}
+
+fn ghx_to_mdr_theme() -> mdr::theme::Theme {
+    let t = crate::theme::current();
+    let base = mdr::theme::default_theme();
+    mdr::theme::Theme {
+        border: t.border,
+        accent: t.accent,
+        text: t.fg,
+        text_bright: t.fg,
+        text_dim: t.dim,
+        text_muted: t.border,
+        heading: t.heading,
+        error: t.red,
+        cursor_bg: base.cursor_bg,
+        labels: base.labels,
     }
 }
 

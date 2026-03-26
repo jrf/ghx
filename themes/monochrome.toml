@@ -8,6 +8,7 @@ fg_muted = "#555555"
 gray_light = "#cccccc"
 gray = "#aaaaaa"
 gray_dark = "#777777"
+magenta = "#bbbbbb"
 red = "#ff5555"
 
 [ui]

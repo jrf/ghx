@@ -173,6 +173,11 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> anyhow::Result<()> {
                 _ => {}
             }
 
+            // Compute page size from terminal height
+            let page_size = crossterm::terminal::size()
+                .map(|(_, h)| (h as usize).saturating_sub(6))
+                .unwrap_or(20);
+
             // Screen-specific keys
             match app.screen {
                 Screen::Home => match key.code {
@@ -186,32 +191,29 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> anyhow::Result<()> {
                         Tab::Search => app.search.move_up(),
                         _ => app.repo_list.move_up(),
                     },
-                    KeyCode::Char('g') => match app.tab {
-                        Tab::Notifications => {
-                            if !app.notif_list.notifs.is_empty() {
-                                app.notif_list.state.select(Some(0));
-                            }
-                        }
-                        Tab::Search => {
-                            if !app.search.results.is_empty() {
-                                app.search.state.select(Some(0));
-                            }
-                        }
-                        _ => app.repo_list.state.select(Some(0)),
+                    KeyCode::Char('g') | KeyCode::Home => match app.tab {
+                        Tab::Notifications => app.notif_list.move_to_first(),
+                        Tab::Search => app.search.move_to_first(),
+                        _ => app.repo_list.move_to_first(),
                     },
-                    KeyCode::Char('G') => match app.tab {
-                        Tab::Notifications => {
-                            let len = app.notif_list.notifs.len();
-                            if len > 0 { app.notif_list.state.select(Some(len - 1)); }
-                        }
-                        Tab::Search => {
-                            let len = app.search.results.len();
-                            if len > 0 { app.search.state.select(Some(len - 1)); }
-                        }
-                        _ => {
-                            let len = app.repo_list.filtered_indices.len();
-                            if len > 0 { app.repo_list.state.select(Some(len - 1)); }
-                        }
+                    KeyCode::Char('G') | KeyCode::End => match app.tab {
+                        Tab::Notifications => app.notif_list.move_to_last(),
+                        Tab::Search => app.search.move_to_last(),
+                        _ => app.repo_list.move_to_last(),
+                    },
+                    KeyCode::PageDown
+                    | KeyCode::Char('f') if key.code == KeyCode::PageDown || key.modifiers.contains(KeyModifiers::CONTROL)
+                    => match app.tab {
+                        Tab::Notifications => app.notif_list.page_down(page_size),
+                        Tab::Search => app.search.page_down(page_size),
+                        _ => app.repo_list.page_down(page_size),
+                    },
+                    KeyCode::PageUp
+                    | KeyCode::Char('b') if key.code == KeyCode::PageUp || key.modifiers.contains(KeyModifiers::CONTROL)
+                    => match app.tab {
+                        Tab::Notifications => app.notif_list.page_up(page_size),
+                        Tab::Search => app.search.page_up(page_size),
+                        _ => app.repo_list.page_up(page_size),
                     },
                     KeyCode::Char('m') => {
                         if app.tab == Tab::Notifications {
@@ -245,20 +247,31 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> anyhow::Result<()> {
                             KeyCode::Char('u') => {
                                 if !is_list { d.scroll_up(10); }
                             }
-                            KeyCode::Char('g') => {
+                            KeyCode::Char('g') | KeyCode::Home => {
                                 if is_list {
-                                    d.list_state.select(if d.current_list_len() > 0 { Some(0) } else { None });
+                                    d.move_to_first();
                                 } else {
                                     d.scroll = 0;
                                 }
                             }
-                            KeyCode::Char('G') => {
+                            KeyCode::Char('G') | KeyCode::End => {
                                 if is_list {
-                                    let len = d.current_list_len();
-                                    if len > 0 { d.list_state.select(Some(len - 1)); }
+                                    d.move_to_last();
                                 } else {
                                     d.scroll_down(d.lines_count as u16);
                                 }
+                            }
+                            KeyCode::PageDown => {
+                                if is_list { d.page_down_list(page_size); } else { d.scroll_down(page_size as u16); }
+                            }
+                            KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                                if is_list { d.page_down_list(page_size); } else { d.scroll_down(page_size as u16); }
+                            }
+                            KeyCode::PageUp => {
+                                if is_list { d.page_up_list(page_size); } else { d.scroll_up(page_size as u16); }
+                            }
+                            KeyCode::Char('b') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                                if is_list { d.page_up_list(page_size); } else { d.scroll_up(page_size as u16); }
                             }
                             KeyCode::Tab => d.next_tab(),
                             KeyCode::BackTab => d.prev_tab(),
@@ -450,7 +463,9 @@ fn draw_help(f: &mut Frame, area: Rect) {
     let help_lines = vec![
         ("Navigation", vec![
             ("j/k, ↑/↓", "Move up/down"),
-            ("g/G", "Jump to top/bottom"),
+            ("g/G, Home/End", "Jump to top/bottom"),
+            ("PgDn/PgUp", "Page down/up"),
+            ("C-f/C-b", "Page down/up"),
             ("d/u", "Half-page down/up (overview)"),
             ("Tab/S-Tab", "Next/previous tab"),
             ("Enter", "Open selected item"),

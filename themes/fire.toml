@@ -12,6 +12,7 @@ yellow = "#ffcc00"
 white = "#ffffcc"
 cyan = "#88bbcc"
 blue = "#7799bb"
+magenta = "#cc6688"
 
 [ui]
 border = "fg_muted"

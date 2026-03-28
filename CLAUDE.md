@@ -29,6 +29,7 @@ Entry point. Detects current repo via `gh repo view` for context mode, then crea
 - **`repo_detail.go`** — Repository detail view with description, stats, language, license, topics, and glamour-rendered README. Scrollable.
 - **`detail.go`** — Full issue/PR detail view with glamour-rendered markdown body, labels, comments, and scrolling. Caches rendered lines per width.
 - **`search.go`** — GitHub repo search with query input and results list. Supports fuzzy filtering within results.
+- **`lists_view.rs`** — GitHub Lists tab. Two-level drill-down: list names → repos in that list. Fetches all lists + repos in a single GraphQL query. Supports filtering within a list's repos.
 - **`notifications.go`** — GitHub notifications list with drill-down to issue/PR detail and mark-as-read support.
 - **`styles.go`** — Tokyo Night Moon color palette and lipgloss styles.
 - **`keys.go`** — Key bindings (vim-style j/k, enter, esc, tab, o, r, etc.).
@@ -36,10 +37,11 @@ Entry point. Detects current repo via `gh repo view` for context mode, then crea
 ### Navigation Flow
 
 ```
-Home (repos/search/notifications tabs)
+Home (repos/lists/search/notifications tabs)
   → Select repo → Repo Detail (description, stats, README)
     → Enter → Issues/PRs (sub-tabbed)
       → Select issue/PR → Detail view (body + comments)
+  → Lists tab → Select list → Browse repos → Select repo → Repo Detail
   → Select notification → Detail view (issue/PR body + comments)
 ```
 

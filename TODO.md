@@ -49,3 +49,4 @@
 - [x] Repo detail screen (description, stats, topics, README preview) #feature
 - [x] Navigate from notification to its issue/PR #feature
 - [x] Mark notifications as read (`m` key) #feature
+- [x] GitHub Lists tab — browse starred repo lists with drill-down #feature

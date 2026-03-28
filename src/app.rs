@@ -1,5 +1,6 @@
 use crate::gh;
 use crate::theme::{self, Theme};
+use crate::ui::lists_view::ListsView;
 use crate::ui::notif_list::NotifList;
 use crate::ui::repo_detail::RepoDetailView;
 use crate::ui::repo_list::RepoList;
@@ -14,6 +15,7 @@ pub enum Screen {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Tab {
     Repos,
+    Lists,
     Search,
     Notifications,
 }
@@ -23,6 +25,7 @@ pub struct App {
     pub tab: Tab,
     pub repo_list: RepoList,
     pub repo_detail: Option<RepoDetailView>,
+    pub lists_view: ListsView,
     pub notif_list: NotifList,
     pub search: SearchView,
     pub selected_repo: Option<String>,
@@ -51,6 +54,7 @@ impl App {
             tab: Tab::Repos,
             repo_list: RepoList::new(),
             repo_detail: None,
+            lists_view: ListsView::new(),
             notif_list: NotifList::new(),
             search: SearchView::new(),
             selected_repo: None,
@@ -111,9 +115,10 @@ impl App {
                     self.repo_list.set_source_by_index(current + 1);
                     self.repo_list.load();
                 } else {
-                    self.tab = Tab::Search;
+                    self.tab = Tab::Lists;
                 }
             }
+            Tab::Lists => self.tab = Tab::Search,
             Tab::Search => self.tab = Tab::Notifications,
             Tab::Notifications => {
                 self.tab = Tab::Repos;
@@ -136,11 +141,12 @@ impl App {
                     self.tab = Tab::Notifications;
                 }
             }
-            Tab::Search => {
+            Tab::Lists => {
                 self.tab = Tab::Repos;
                 self.repo_list.set_source_by_index(total - 1);
                 self.repo_list.load();
             }
+            Tab::Search => self.tab = Tab::Lists,
             Tab::Notifications => self.tab = Tab::Search,
         }
     }
@@ -150,6 +156,15 @@ impl App {
             Screen::Home if self.tab == Tab::Repos => {
                 if let Some(repo) = self.repo_list.selected_repo() {
                     self.enter_repo(repo.full_name.clone());
+                }
+            }
+            Screen::Home if self.tab == Tab::Lists => {
+                if self.lists_view.is_browsing_repos() {
+                    if let Some(repo) = self.lists_view.selected_repo() {
+                        self.enter_repo(repo.full_name.clone());
+                    }
+                } else {
+                    self.lists_view.enter();
                 }
             }
             Screen::Home if self.tab == Tab::Search => {
@@ -185,14 +200,37 @@ impl App {
                     gh::open_repo(&repo.full_name);
                 }
             }
+            Screen::Home if self.tab == Tab::Lists => {
+                if let Some(repo) = self.lists_view.selected_repo() {
+                    gh::open_repo(&repo.full_name);
+                }
+            }
             Screen::Home if self.tab == Tab::Search => {
                 if let Some(repo) = self.search.selected_repo() {
                     gh::open_repo(&repo.full_name);
                 }
             }
             Screen::RepoDetail => {
-                if let Some(ref name) = self.selected_repo {
-                    gh::open_repo(name);
+                if let Some(ref detail) = self.repo_detail {
+                    if let Some(ref name) = self.selected_repo {
+                        match detail.tab {
+                            crate::ui::repo_detail::RepoTab::Issues => {
+                                if let Some(number) = detail.selected_issue_number() {
+                                    gh::open_issue(name, number);
+                                } else {
+                                    gh::open_repo(name);
+                                }
+                            }
+                            crate::ui::repo_detail::RepoTab::PullRequests => {
+                                if let Some(number) = detail.selected_pr_number() {
+                                    gh::open_pr(name, number);
+                                } else {
+                                    gh::open_repo(name);
+                                }
+                            }
+                            _ => gh::open_repo(name),
+                        }
+                    }
                 }
             }
             _ => {}

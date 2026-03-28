@@ -48,6 +48,7 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> anyhow::Result<()> {
 
         // Poll for async data
         app.repo_list.poll();
+        app.lists_view.poll();
         app.notif_list.poll();
         app.search.poll();
         if let Some(ref mut detail) = app.repo_detail {
@@ -89,6 +90,18 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> anyhow::Result<()> {
                     KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('t') => {
                         app.theme_picker_cancel();
                     }
+                    _ => {}
+                }
+                continue;
+            }
+
+            // Filter input mode for lists repos
+            if app.screen == Screen::Home && app.tab == Tab::Lists && app.lists_view.filtering {
+                match key.code {
+                    KeyCode::Esc => app.lists_view.on_filter_clear(),
+                    KeyCode::Backspace => app.lists_view.on_filter_backspace(),
+                    KeyCode::Enter => app.lists_view.filtering = false,
+                    KeyCode::Char(c) => app.lists_view.on_filter_key(c),
                     _ => {}
                 }
                 continue;
@@ -165,6 +178,8 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> anyhow::Result<()> {
                 KeyCode::Esc | KeyCode::Backspace => {
                     if app.screen != Screen::Home {
                         app.go_back();
+                    } else if app.tab == Tab::Lists && app.lists_view.go_back() {
+                        // went back from list repos to list names
                     } else if !app.repo_list.filter.is_empty() {
                         app.repo_list.filter.clear();
                         app.repo_list.refilter();
@@ -182,21 +197,25 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> anyhow::Result<()> {
             match app.screen {
                 Screen::Home => match key.code {
                     KeyCode::Char('j') | KeyCode::Down => match app.tab {
+                        Tab::Lists => app.lists_view.move_down(),
                         Tab::Notifications => app.notif_list.move_down(),
                         Tab::Search => app.search.move_down(),
                         _ => app.repo_list.move_down(),
                     },
                     KeyCode::Char('k') | KeyCode::Up => match app.tab {
+                        Tab::Lists => app.lists_view.move_up(),
                         Tab::Notifications => app.notif_list.move_up(),
                         Tab::Search => app.search.move_up(),
                         _ => app.repo_list.move_up(),
                     },
                     KeyCode::Char('g') | KeyCode::Home => match app.tab {
+                        Tab::Lists => app.lists_view.move_to_first(),
                         Tab::Notifications => app.notif_list.move_to_first(),
                         Tab::Search => app.search.move_to_first(),
                         _ => app.repo_list.move_to_first(),
                     },
                     KeyCode::Char('G') | KeyCode::End => match app.tab {
+                        Tab::Lists => app.lists_view.move_to_last(),
                         Tab::Notifications => app.notif_list.move_to_last(),
                         Tab::Search => app.search.move_to_last(),
                         _ => app.repo_list.move_to_last(),
@@ -204,6 +223,7 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> anyhow::Result<()> {
                     KeyCode::PageDown
                     | KeyCode::Char('f') if key.code == KeyCode::PageDown || key.modifiers.contains(KeyModifiers::CONTROL)
                     => match app.tab {
+                        Tab::Lists => app.lists_view.page_down(page_size),
                         Tab::Notifications => app.notif_list.page_down(page_size),
                         Tab::Search => app.search.page_down(page_size),
                         _ => app.repo_list.page_down(page_size),
@@ -211,6 +231,7 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> anyhow::Result<()> {
                     KeyCode::PageUp
                     | KeyCode::Char('b') if key.code == KeyCode::PageUp || key.modifiers.contains(KeyModifiers::CONTROL)
                     => match app.tab {
+                        Tab::Lists => app.lists_view.page_up(page_size),
                         Tab::Notifications => app.notif_list.page_up(page_size),
                         Tab::Search => app.search.page_up(page_size),
                         _ => app.repo_list.page_up(page_size),
@@ -222,6 +243,9 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> anyhow::Result<()> {
                     }
                     KeyCode::Char('/') => match app.tab {
                         Tab::Repos => app.repo_list.filtering = true,
+                        Tab::Lists if app.lists_view.is_browsing_repos() => {
+                            app.lists_view.filtering = true;
+                        }
                         Tab::Search => app.search.editing = true,
                         _ => {}
                     },
@@ -366,11 +390,18 @@ fn draw_tabs(f: &mut Frame, app: &App, area: Rect) {
     }
 
     let mut titles: Vec<String> = app.repo_list.source_labels();
+    let lists_label = if let Some(name) = app.lists_view.current_list_name() {
+        format!("Lists/{name}")
+    } else {
+        "Lists".into()
+    };
+    titles.push(lists_label);
     titles.push("Search".into());
     titles.push("Notifications".into());
 
     let active = match app.tab {
         Tab::Repos => app.repo_list.active_source_index(),
+        Tab::Lists => titles.len() - 3,
         Tab::Search => titles.len() - 2,
         Tab::Notifications => titles.len() - 1,
     };
@@ -437,6 +468,10 @@ fn draw_content(f: &mut Frame, app: &mut App, area: Rect) {
             } else {
                 app.repo_list.render(f, area, tick);
             }
+        }
+        Tab::Lists => {
+            app.lists_view.ensure_loaded();
+            app.lists_view.render(f, area, tick);
         }
         Tab::Search => {
             app.search.render(f, area, tick);

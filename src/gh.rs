@@ -374,6 +374,78 @@ pub fn open_in_browser(url: &str) -> Result<()> {
     Ok(())
 }
 
+pub struct UserList {
+    pub name: String,
+    pub repos: Vec<Repo>,
+}
+
+pub fn list_user_lists() -> Result<Vec<UserList>> {
+    let query = r#"{ viewer { lists(first: 20) { nodes { name items(first: 50) { nodes { ... on Repository { nameWithOwner description stargazerCount isPrivate updatedAt } } } } } } }"#;
+    let out = run(&["api", "graphql", "-f", &format!("query={query}")])?;
+    #[derive(Deserialize)]
+    struct RepoNode {
+        #[serde(alias = "nameWithOwner")]
+        name_with_owner: Option<String>,
+        description: Option<String>,
+        #[serde(alias = "stargazerCount", default)]
+        stargazer_count: u32,
+        #[serde(alias = "isPrivate", default)]
+        is_private: bool,
+        #[serde(alias = "updatedAt")]
+        updated_at: Option<String>,
+    }
+    #[derive(Deserialize)]
+    struct Items {
+        nodes: Vec<RepoNode>,
+    }
+    #[derive(Deserialize)]
+    struct ListNode {
+        name: String,
+        items: Items,
+    }
+    #[derive(Deserialize)]
+    struct Nodes {
+        nodes: Vec<ListNode>,
+    }
+    #[derive(Deserialize)]
+    struct Viewer {
+        lists: Nodes,
+    }
+    #[derive(Deserialize)]
+    struct Data {
+        viewer: Viewer,
+    }
+    #[derive(Deserialize)]
+    struct Resp {
+        data: Data,
+    }
+    let resp: Resp = serde_json::from_str(&out)?;
+    Ok(resp
+        .data
+        .viewer
+        .lists
+        .nodes
+        .into_iter()
+        .map(|list| UserList {
+            name: list.name,
+            repos: list
+                .items
+                .nodes
+                .into_iter()
+                .filter_map(|n| {
+                    Some(Repo {
+                        full_name: n.name_with_owner?,
+                        description: n.description,
+                        is_private: n.is_private,
+                        star_count: n.stargazer_count,
+                        updated_at: n.updated_at,
+                    })
+                })
+                .collect(),
+        })
+        .collect())
+}
+
 pub fn open_repo(repo: &str) {
     let _ = open_in_browser(&format!("https://github.com/{repo}"));
 }

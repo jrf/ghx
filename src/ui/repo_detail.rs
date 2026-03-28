@@ -154,6 +154,16 @@ impl RepoDetailView {
         }
     }
 
+    pub fn selected_issue_number(&self) -> Option<u32> {
+        let i = self.list_state.selected()?;
+        self.issues.get(i).map(|issue| issue.number)
+    }
+
+    pub fn selected_pr_number(&self) -> Option<u32> {
+        let i = self.list_state.selected()?;
+        self.prs.get(i).map(|pr| pr.number)
+    }
+
     fn load_all(&mut self, repo: String) {
         self.loading = true;
         self.issues_loading = true;

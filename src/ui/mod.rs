@@ -1,3 +1,4 @@
+pub mod lists_view;
 pub mod notif_list;
 pub mod repo_detail;
 pub mod repo_list;

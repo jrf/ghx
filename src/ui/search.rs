@@ -1,9 +1,9 @@
 use crate::gh::{self, Repo};
 use ratatui::{
+    Frame,
     layout::{Constraint, Layout, Rect},
     text::{Line, Span},
     widgets::{List, ListItem, ListState},
-    Frame,
 };
 use std::sync::mpsc;
 use std::thread;
@@ -123,7 +123,7 @@ impl SearchView {
     pub fn render(&mut self, f: &mut Frame, area: Rect, tick: usize) {
         let chunks = Layout::vertical([
             Constraint::Length(1), // search input
-            Constraint::Min(1),   // results
+            Constraint::Min(1),    // results
         ])
         .split(area);
 
@@ -162,23 +162,25 @@ impl SearchView {
             return;
         }
 
-        let items: Vec<ListItem> = self.results.iter().map(|repo| {
-            let mut spans = vec![
-                Span::styled(&repo.full_name, style_normal()),
-            ];
-            if repo.is_private {
-                spans.push(Span::styled(" ⊝", style_purple()));
-            }
-            if repo.star_count > 0 {
-                spans.push(Span::styled(format!(" *{}", repo.star_count), style_dim()));
-            }
-            if let Some(ref desc) = repo.description {
-                if !desc.is_empty() {
-                    spans.push(Span::styled(format!(" — {desc}"), style_dim()));
+        let items: Vec<ListItem> = self
+            .results
+            .iter()
+            .map(|repo| {
+                let mut spans = vec![Span::styled(&repo.full_name, style_normal())];
+                if repo.is_private {
+                    spans.push(Span::styled(" ⊝", style_purple()));
                 }
-            }
-            ListItem::new(Line::from(spans))
-        }).collect();
+                if repo.star_count > 0 {
+                    spans.push(Span::styled(format!(" *{}", repo.star_count), style_dim()));
+                }
+                if let Some(ref desc) = repo.description {
+                    if !desc.is_empty() {
+                        spans.push(Span::styled(format!(" — {desc}"), style_dim()));
+                    }
+                }
+                ListItem::new(Line::from(spans))
+            })
+            .collect();
 
         let list = List::new(items)
             .highlight_style(style_selected())

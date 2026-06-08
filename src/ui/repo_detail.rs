@@ -1,9 +1,9 @@
-use crate::gh::{self, CheckStatus, Issue, RepoDetail, PR};
+use crate::gh::{self, CheckStatus, Issue, PR, RepoDetail};
 use ratatui::{
+    Frame,
     layout::Rect,
     text::{Line, Span},
     widgets::{List, ListItem, ListState, Paragraph},
-    Frame,
 };
 use std::sync::mpsc;
 use std::thread;
@@ -89,7 +89,11 @@ impl RepoDetailView {
             RepoTab::PullRequests => RepoTab::Overview,
         };
         self.scroll = 0;
-        self.list_state.select(if self.current_list_len() > 0 { Some(0) } else { None });
+        self.list_state.select(if self.current_list_len() > 0 {
+            Some(0)
+        } else {
+            None
+        });
     }
 
     pub fn prev_tab(&mut self) {
@@ -99,7 +103,11 @@ impl RepoDetailView {
             RepoTab::PullRequests => RepoTab::Issues,
         };
         self.scroll = 0;
-        self.list_state.select(if self.current_list_len() > 0 { Some(0) } else { None });
+        self.list_state.select(if self.current_list_len() > 0 {
+            Some(0)
+        } else {
+            None
+        });
     }
 
     pub fn current_list_len(&self) -> usize {
@@ -112,7 +120,9 @@ impl RepoDetailView {
 
     pub fn move_down(&mut self) {
         let len = self.current_list_len();
-        if len == 0 { return; }
+        if len == 0 {
+            return;
+        }
         if let Some(i) = self.list_state.selected() {
             if i + 1 < len {
                 self.list_state.select(Some(i + 1));
@@ -291,10 +301,22 @@ impl RepoDetailView {
         if let Some(ref lang) = detail.primary_language {
             stats.push(Span::styled(format!(" {} ", lang.name), style_accent()));
         }
-        stats.push(Span::styled(format!("★ {} ", detail.star_count), style_normal()));
-        stats.push(Span::styled(format!("⑂ {} ", detail.fork_count), style_normal()));
-        stats.push(Span::styled(format!("Issues: {} ", detail.issues.total_count), style_normal()));
-        stats.push(Span::styled(format!("PRs: {}", detail.pull_requests.total_count), style_normal()));
+        stats.push(Span::styled(
+            format!("★ {} ", detail.star_count),
+            style_normal(),
+        ));
+        stats.push(Span::styled(
+            format!("⑂ {} ", detail.fork_count),
+            style_normal(),
+        ));
+        stats.push(Span::styled(
+            format!("Issues: {} ", detail.issues.total_count),
+            style_normal(),
+        ));
+        stats.push(Span::styled(
+            format!("PRs: {}", detail.pull_requests.total_count),
+            style_normal(),
+        ));
         lines.push(Line::from(stats));
 
         let mut badges = Vec::new();
@@ -311,7 +333,10 @@ impl RepoDetailView {
             badges.push(Span::styled(format!(" {}", license.name), style_dim()));
         }
         if let Some(ref branch) = detail.default_branch_ref {
-            badges.push(Span::styled(format!(" branch:{}", branch.name), style_dim()));
+            badges.push(Span::styled(
+                format!(" branch:{}", branch.name),
+                style_dim(),
+            ));
         }
         if !badges.is_empty() {
             lines.push(Line::from(badges));
@@ -327,7 +352,10 @@ impl RepoDetailView {
 
         if let Some(ref url) = detail.homepage_url {
             if !url.is_empty() {
-                lines.push(Line::from(Span::styled(format!(" homepage: {url}"), style_dim())));
+                lines.push(Line::from(Span::styled(
+                    format!(" homepage: {url}"),
+                    style_dim(),
+                )));
             }
         }
 
@@ -335,7 +363,8 @@ impl RepoDetailView {
 
         if let Some(ref readme) = self.readme_raw {
             let mdr_theme = ghx_to_mdr_theme();
-            let styled = mdr::markdown::parse_markdown(readme, mdr_theme, area.width.saturating_sub(2));
+            let styled =
+                mdr::markdown::parse_markdown(readme, mdr_theme, area.width.saturating_sub(2));
             for sl in &styled {
                 lines.push(sl.line.clone());
             }
@@ -364,35 +393,42 @@ impl RepoDetailView {
             return;
         }
 
-        let items: Vec<ListItem> = self.issues.iter().map(|issue| {
-            let state_style = match issue.state.as_str() {
-                "OPEN" => ratatui::style::Style::default().fg(green()),
-                "CLOSED" => ratatui::style::Style::default().fg(red()),
-                _ => style_dim(),
-            };
-            let mut spans = vec![
-                Span::styled(format!("#{} ", issue.number), style_dim()),
-                Span::styled(&issue.title, style_normal()),
-            ];
-            if !issue.labels.is_empty() {
-                let labels: Vec<&str> = issue.labels.iter().map(|l| l.name.as_str()).collect();
-                spans.push(Span::styled(format!(" [{}]", labels.join(", ")), style_purple()));
-            }
-            if let Some(ref author) = issue.author {
-                spans.push(Span::styled(format!(" @{}", author.login), style_dim()));
-            }
-            if let Some(ref ts) = issue.updated_at {
-                spans.push(Span::styled(format!(" · {}", timeago(ts)), style_dim()));
-            }
-            let state_icon = match issue.state.as_str() {
-                "OPEN" => "● ",
-                "CLOSED" => "✓ ",
-                _ => "  ",
-            };
-            let mut all_spans = vec![Span::styled(state_icon, state_style)];
-            all_spans.extend(spans);
-            ListItem::new(Line::from(all_spans))
-        }).collect();
+        let items: Vec<ListItem> = self
+            .issues
+            .iter()
+            .map(|issue| {
+                let state_style = match issue.state.as_str() {
+                    "OPEN" => ratatui::style::Style::default().fg(green()),
+                    "CLOSED" => ratatui::style::Style::default().fg(red()),
+                    _ => style_dim(),
+                };
+                let mut spans = vec![
+                    Span::styled(format!("#{} ", issue.number), style_dim()),
+                    Span::styled(&issue.title, style_normal()),
+                ];
+                if !issue.labels.is_empty() {
+                    let labels: Vec<&str> = issue.labels.iter().map(|l| l.name.as_str()).collect();
+                    spans.push(Span::styled(
+                        format!(" [{}]", labels.join(", ")),
+                        style_purple(),
+                    ));
+                }
+                if let Some(ref author) = issue.author {
+                    spans.push(Span::styled(format!(" @{}", author.login), style_dim()));
+                }
+                if let Some(ref ts) = issue.updated_at {
+                    spans.push(Span::styled(format!(" · {}", timeago(ts)), style_dim()));
+                }
+                let state_icon = match issue.state.as_str() {
+                    "OPEN" => "● ",
+                    "CLOSED" => "✓ ",
+                    _ => "  ",
+                };
+                let mut all_spans = vec![Span::styled(state_icon, state_style)];
+                all_spans.extend(spans);
+                ListItem::new(Line::from(all_spans))
+            })
+            .collect();
 
         let list = List::new(items)
             .highlight_style(style_selected())
@@ -420,30 +456,40 @@ impl RepoDetailView {
             return;
         }
 
-        let items: Vec<ListItem> = self.prs.iter().map(|pr| {
-            let check = pr.overall_check_status();
-            let check_span = match check {
-                CheckStatus::Pass => Span::styled("✓ ", ratatui::style::Style::default().fg(green())),
-                CheckStatus::Fail => Span::styled("✗ ", ratatui::style::Style::default().fg(red())),
-                CheckStatus::Pending => Span::styled("● ", ratatui::style::Style::default().fg(yellow())),
-                CheckStatus::None => Span::raw("  "),
-            };
-            let mut spans = vec![
-                check_span,
-                Span::styled(format!("#{} ", pr.number), style_dim()),
-                Span::styled(&pr.title, style_normal()),
-            ];
-            if pr.is_draft {
-                spans.push(Span::styled(" [draft]", style_dim()));
-            }
-            if let Some(ref author) = pr.author {
-                spans.push(Span::styled(format!(" @{}", author.login), style_dim()));
-            }
-            if let Some(ref ts) = pr.updated_at {
-                spans.push(Span::styled(format!(" · {}", timeago(ts)), style_dim()));
-            }
-            ListItem::new(Line::from(spans))
-        }).collect();
+        let items: Vec<ListItem> = self
+            .prs
+            .iter()
+            .map(|pr| {
+                let check = pr.overall_check_status();
+                let check_span = match check {
+                    CheckStatus::Pass => {
+                        Span::styled("✓ ", ratatui::style::Style::default().fg(green()))
+                    }
+                    CheckStatus::Fail => {
+                        Span::styled("✗ ", ratatui::style::Style::default().fg(red()))
+                    }
+                    CheckStatus::Pending => {
+                        Span::styled("● ", ratatui::style::Style::default().fg(yellow()))
+                    }
+                    CheckStatus::None => Span::raw("  "),
+                };
+                let mut spans = vec![
+                    check_span,
+                    Span::styled(format!("#{} ", pr.number), style_dim()),
+                    Span::styled(&pr.title, style_normal()),
+                ];
+                if pr.is_draft {
+                    spans.push(Span::styled(" [draft]", style_dim()));
+                }
+                if let Some(ref author) = pr.author {
+                    spans.push(Span::styled(format!(" @{}", author.login), style_dim()));
+                }
+                if let Some(ref ts) = pr.updated_at {
+                    spans.push(Span::styled(format!(" · {}", timeago(ts)), style_dim()));
+                }
+                ListItem::new(Line::from(spans))
+            })
+            .collect();
 
         let list = List::new(items)
             .highlight_style(style_selected())
@@ -471,7 +517,6 @@ fn ghx_to_mdr_theme() -> mdr::theme::Theme {
 }
 
 fn render_scrollable(f: &mut Frame, area: Rect, lines: &[Line], scroll: u16) {
-    let para = Paragraph::new(lines.to_vec())
-        .scroll((scroll, 0));
+    let para = Paragraph::new(lines.to_vec()).scroll((scroll, 0));
     f.render_widget(para, area);
 }

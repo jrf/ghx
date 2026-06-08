@@ -54,7 +54,10 @@ pub fn load_all_themes() -> Vec<(String, Theme)> {
         ("purple", include_str!("../themes/purple.toml")),
         ("sunset", include_str!("../themes/sunset.toml")),
         ("synthwave", include_str!("../themes/synthwave.toml")),
-        ("tokyo-night-moon", include_str!("../themes/tokyo-night-moon.toml")),
+        (
+            "tokyo-night-moon",
+            include_str!("../themes/tokyo-night-moon.toml"),
+        ),
     ];
 
     for (name, content) in embedded {
@@ -194,14 +197,22 @@ fn parse_theme(content: &str) -> Option<Theme> {
 
     Some(Theme {
         bg: color("bg").unwrap_or(hex(0x22, 0x24, 0x36)),
-        fg: resolve("text").or_else(|| color("fg")).unwrap_or(hex(0xc8, 0xd3, 0xf5)),
-        dim: resolve("text_dim").or_else(|| color("fg_dim")).unwrap_or(hex(0x63, 0x6d, 0xa6)),
+        fg: resolve("text")
+            .or_else(|| color("fg"))
+            .unwrap_or(hex(0xc8, 0xd3, 0xf5)),
+        dim: resolve("text_dim")
+            .or_else(|| color("fg_dim"))
+            .unwrap_or(hex(0x63, 0x6d, 0xa6)),
         accent: resolve("accent").unwrap_or(hex(0xc0, 0x99, 0xff)),
-        border: resolve("border").or_else(|| color("fg_muted")).unwrap_or(hex(0x3b, 0x42, 0x61)),
+        border: resolve("border")
+            .or_else(|| color("fg_muted"))
+            .unwrap_or(hex(0x3b, 0x42, 0x61)),
         red: color("red").unwrap_or(hex(0xff, 0x75, 0x7f)),
         green: color("green").unwrap_or(hex(0xc3, 0xe8, 0x8d)),
         yellow: color("yellow").unwrap_or(hex(0xff, 0xc7, 0x77)),
-        purple: color("magenta").or_else(|| color("purple")).unwrap_or(hex(0xfc, 0xa7, 0xea)),
+        purple: color("magenta")
+            .or_else(|| color("purple"))
+            .unwrap_or(hex(0xfc, 0xa7, 0xea)),
         heading: resolve("heading").unwrap_or(hex(0x82, 0xaa, 0xff)),
     })
 }

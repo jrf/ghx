@@ -1,9 +1,9 @@
 use crate::gh::{self, Notification};
 use ratatui::{
+    Frame,
     layout::Rect,
     text::{Line, Span},
     widgets::{List, ListItem, ListState},
-    Frame,
 };
 use std::sync::mpsc;
 use std::thread;
@@ -149,28 +149,32 @@ impl NotifList {
             return;
         }
 
-        let items: Vec<ListItem> = self.notifs.iter().map(|n| {
-            let kind_icon = match n.subject.kind.as_str() {
-                "Issue" => "●",
-                "PullRequest" => "⑂",
-                "Release" => "▲",
-                _ => "•",
-            };
-            let kind_style = match n.subject.kind.as_str() {
-                "Issue" => ratatui::style::Style::default().fg(green()),
-                "PullRequest" => ratatui::style::Style::default().fg(purple()),
-                _ => style_dim(),
-            };
-            let mut spans = vec![
-                Span::styled(format!("{kind_icon} "), kind_style),
-                Span::styled(&n.subject.title, style_normal()),
-                Span::styled(format!("  {}", n.repository.full_name), style_dim()),
-            ];
-            if let Some(ref ts) = n.updated_at {
-                spans.push(Span::styled(format!(" · {}", timeago(ts)), style_dim()));
-            }
-            ListItem::new(Line::from(spans))
-        }).collect();
+        let items: Vec<ListItem> = self
+            .notifs
+            .iter()
+            .map(|n| {
+                let kind_icon = match n.subject.kind.as_str() {
+                    "Issue" => "●",
+                    "PullRequest" => "⑂",
+                    "Release" => "▲",
+                    _ => "•",
+                };
+                let kind_style = match n.subject.kind.as_str() {
+                    "Issue" => ratatui::style::Style::default().fg(green()),
+                    "PullRequest" => ratatui::style::Style::default().fg(purple()),
+                    _ => style_dim(),
+                };
+                let mut spans = vec![
+                    Span::styled(format!("{kind_icon} "), kind_style),
+                    Span::styled(&n.subject.title, style_normal()),
+                    Span::styled(format!("  {}", n.repository.full_name), style_dim()),
+                ];
+                if let Some(ref ts) = n.updated_at {
+                    spans.push(Span::styled(format!(" · {}", timeago(ts)), style_dim()));
+                }
+                ListItem::new(Line::from(spans))
+            })
+            .collect();
 
         let list = List::new(items)
             .highlight_style(style_selected())

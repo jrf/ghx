@@ -1,9 +1,9 @@
 use crate::gh::{self, Repo, UserList};
 use ratatui::{
+    Frame,
     layout::Rect,
     text::{Line, Span},
     widgets::{List, ListItem, ListState},
-    Frame,
 };
 use std::sync::mpsc;
 use std::thread;
@@ -330,10 +330,7 @@ impl ListsView {
                     spans.push(Span::styled(" ⊝", style_purple()));
                 }
                 if repo.star_count > 0 {
-                    spans.push(Span::styled(
-                        format!(" *{}", repo.star_count),
-                        style_dim(),
-                    ));
+                    spans.push(Span::styled(format!(" *{}", repo.star_count), style_dim()));
                 }
                 if let Some(ref ts) = repo.updated_at {
                     spans.push(Span::styled(format!(" · {}", timeago(ts)), style_dim()));

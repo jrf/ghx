@@ -185,7 +185,11 @@ pub struct RepoDetail {
     pub license_info: Option<LicenseWrapper>,
     #[serde(alias = "defaultBranchRef")]
     pub default_branch_ref: Option<BranchWrapper>,
-    #[serde(alias = "repositoryTopics", default, deserialize_with = "null_as_default")]
+    #[serde(
+        alias = "repositoryTopics",
+        default,
+        deserialize_with = "null_as_default"
+    )]
     pub topics: Vec<TopicWrapper>,
     #[serde(alias = "createdAt")]
     pub created_at: Option<String>,
@@ -227,9 +231,12 @@ pub struct TopicWrapper {
 
 pub fn list_repos(limit: u32) -> Result<Vec<Repo>> {
     let out = run(&[
-        "repo", "list", "--json",
+        "repo",
+        "list",
+        "--json",
         "name,nameWithOwner,description,updatedAt,isPrivate,stargazerCount",
-        "--limit", &limit.to_string(),
+        "--limit",
+        &limit.to_string(),
     ])?;
     Ok(serde_json::from_str(&out)?)
 }
@@ -249,50 +256,76 @@ pub fn list_starred(limit: u32) -> Result<Vec<Repo>> {
         updated_at: Option<String>,
     }
     let starred: Vec<Star> = serde_json::from_str(&out)?;
-    Ok(starred.into_iter().map(|s| Repo {
-        full_name: s.full_name,
-        description: s.description,
-        is_private: s.private,
-        star_count: s.stargazers_count,
-        updated_at: s.updated_at,
-    }).collect())
+    Ok(starred
+        .into_iter()
+        .map(|s| Repo {
+            full_name: s.full_name,
+            description: s.description,
+            is_private: s.private,
+            star_count: s.stargazers_count,
+            updated_at: s.updated_at,
+        })
+        .collect())
 }
 
 pub fn list_orgs() -> Result<Vec<String>> {
     let out = run(&["api", "user/orgs", "--jq", ".[].login"])?;
-    Ok(out.lines().filter(|l| !l.is_empty()).map(String::from).collect())
+    Ok(out
+        .lines()
+        .filter(|l| !l.is_empty())
+        .map(String::from)
+        .collect())
 }
 
 pub fn list_org_repos(org: &str, limit: u32) -> Result<Vec<Repo>> {
     let out = run(&[
-        "repo", "list", org, "--json",
+        "repo",
+        "list",
+        org,
+        "--json",
         "name,nameWithOwner,description,updatedAt,isPrivate,stargazerCount",
-        "--limit", &limit.to_string(),
+        "--limit",
+        &limit.to_string(),
     ])?;
     Ok(serde_json::from_str(&out)?)
 }
 
 pub fn list_issues(repo: &str, limit: u32) -> Result<Vec<Issue>> {
     let out = run(&[
-        "issue", "list", "-R", repo, "--json",
+        "issue",
+        "list",
+        "-R",
+        repo,
+        "--json",
         "number,title,state,author,labels,updatedAt",
-        "--limit", &limit.to_string(),
+        "--limit",
+        &limit.to_string(),
     ])?;
     Ok(serde_json::from_str(&out)?)
 }
 
 pub fn list_prs(repo: &str, limit: u32) -> Result<Vec<PR>> {
     let out = run(&[
-        "pr", "list", "-R", repo, "--json",
+        "pr",
+        "list",
+        "-R",
+        repo,
+        "--json",
         "number,title,state,author,isDraft,updatedAt,statusCheckRollup",
-        "--limit", &limit.to_string(),
+        "--limit",
+        &limit.to_string(),
     ])?;
     Ok(serde_json::from_str(&out)?)
 }
 
 pub fn view_issue(repo: &str, number: u32) -> Result<IssueDetail> {
     let out = run(&[
-        "issue", "view", &number.to_string(), "-R", repo, "--json",
+        "issue",
+        "view",
+        &number.to_string(),
+        "-R",
+        repo,
+        "--json",
         "number,title,state,body,author,labels,comments",
     ])?;
     Ok(serde_json::from_str(&out)?)
@@ -300,7 +333,12 @@ pub fn view_issue(repo: &str, number: u32) -> Result<IssueDetail> {
 
 pub fn view_pr(repo: &str, number: u32) -> Result<IssueDetail> {
     let out = run(&[
-        "pr", "view", &number.to_string(), "-R", repo, "--json",
+        "pr",
+        "view",
+        &number.to_string(),
+        "-R",
+        repo,
+        "--json",
         "number,title,state,body,author,labels,comments",
     ])?;
     Ok(serde_json::from_str(&out)?)
@@ -312,7 +350,10 @@ pub fn pr_diff(repo: &str, number: u32) -> Result<String> {
 
 pub fn view_repo(repo: &str) -> Result<RepoDetail> {
     let out = run(&[
-        "repo", "view", repo, "--json",
+        "repo",
+        "view",
+        repo,
+        "--json",
         "name,nameWithOwner,description,homepageUrl,isPrivate,isFork,isArchived,\
          stargazerCount,forkCount,issues,pullRequests,primaryLanguage,licenseInfo,\
          defaultBranchRef,repositoryTopics,createdAt,updatedAt",
@@ -326,8 +367,10 @@ pub fn view_repo(repo: &str) -> Result<RepoDetail> {
 
 pub fn fetch_readme(repo: &str) -> Result<String> {
     let out = run(&[
-        "api", &format!("repos/{repo}/readme"),
-        "--header", "Accept: application/vnd.github.raw+json",
+        "api",
+        &format!("repos/{repo}/readme"),
+        "--header",
+        "Accept: application/vnd.github.raw+json",
     ])?;
     Ok(out)
 }
@@ -338,15 +381,24 @@ pub fn list_notifications() -> Result<Vec<Notification>> {
 }
 
 pub fn mark_notification_read(thread_id: &str) -> Result<()> {
-    run(&["api", "--method", "PATCH", &format!("notifications/threads/{thread_id}")])?;
+    run(&[
+        "api",
+        "--method",
+        "PATCH",
+        &format!("notifications/threads/{thread_id}"),
+    ])?;
     Ok(())
 }
 
 pub fn search_repos(query: &str, limit: u32) -> Result<Vec<Repo>> {
     let out = run(&[
-        "search", "repos", query, "--json",
+        "search",
+        "repos",
+        query,
+        "--json",
         "fullName,description,isPrivate,stargazersCount,updatedAt",
-        "--limit", &limit.to_string(),
+        "--limit",
+        &limit.to_string(),
     ])?;
     Ok(serde_json::from_str(&out)?)
 }
@@ -363,10 +415,17 @@ pub fn clone_repo(repo: &str, target_dir: &str) -> Result<()> {
 }
 
 pub fn current_repo() -> Option<String> {
-    run(&["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"])
-        .ok()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
+    run(&[
+        "repo",
+        "view",
+        "--json",
+        "nameWithOwner",
+        "-q",
+        ".nameWithOwner",
+    ])
+    .ok()
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty())
 }
 
 pub fn open_in_browser(url: &str) -> Result<()> {

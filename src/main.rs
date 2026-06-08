@@ -6,19 +6,19 @@ mod ui;
 
 use app::{App, Screen, Tab};
 use crossterm::{
-    event::{self, Event, KeyCode, KeyModifiers},
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
+    event::{self, Event, KeyCode, KeyModifiers},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use std::time::Duration;
 use ratatui::{
+    DefaultTerminal, Frame,
     layout::{Constraint, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders},
-    DefaultTerminal, Frame,
 };
 use std::io;
+use std::time::Duration;
 use ui::*;
 
 fn main() -> anyhow::Result<()> {
@@ -220,22 +220,28 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> anyhow::Result<()> {
                         Tab::Search => app.search.move_to_last(),
                         _ => app.repo_list.move_to_last(),
                     },
-                    KeyCode::PageDown
-                    | KeyCode::Char('f') if key.code == KeyCode::PageDown || key.modifiers.contains(KeyModifiers::CONTROL)
-                    => match app.tab {
-                        Tab::Lists => app.lists_view.page_down(page_size),
-                        Tab::Notifications => app.notif_list.page_down(page_size),
-                        Tab::Search => app.search.page_down(page_size),
-                        _ => app.repo_list.page_down(page_size),
-                    },
-                    KeyCode::PageUp
-                    | KeyCode::Char('b') if key.code == KeyCode::PageUp || key.modifiers.contains(KeyModifiers::CONTROL)
-                    => match app.tab {
-                        Tab::Lists => app.lists_view.page_up(page_size),
-                        Tab::Notifications => app.notif_list.page_up(page_size),
-                        Tab::Search => app.search.page_up(page_size),
-                        _ => app.repo_list.page_up(page_size),
-                    },
+                    KeyCode::PageDown | KeyCode::Char('f')
+                        if key.code == KeyCode::PageDown
+                            || key.modifiers.contains(KeyModifiers::CONTROL) =>
+                    {
+                        match app.tab {
+                            Tab::Lists => app.lists_view.page_down(page_size),
+                            Tab::Notifications => app.notif_list.page_down(page_size),
+                            Tab::Search => app.search.page_down(page_size),
+                            _ => app.repo_list.page_down(page_size),
+                        }
+                    }
+                    KeyCode::PageUp | KeyCode::Char('b')
+                        if key.code == KeyCode::PageUp
+                            || key.modifiers.contains(KeyModifiers::CONTROL) =>
+                    {
+                        match app.tab {
+                            Tab::Lists => app.lists_view.page_up(page_size),
+                            Tab::Notifications => app.notif_list.page_up(page_size),
+                            Tab::Search => app.search.page_up(page_size),
+                            _ => app.repo_list.page_up(page_size),
+                        }
+                    }
                     KeyCode::Char('m') => {
                         if app.tab == Tab::Notifications {
                             app.notif_list.mark_selected_read();
@@ -260,16 +266,28 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> anyhow::Result<()> {
                         let is_list = matches!(d.tab, RepoTab::Issues | RepoTab::PullRequests);
                         match key.code {
                             KeyCode::Char('j') | KeyCode::Down => {
-                                if is_list { d.move_down(); } else { d.scroll_down(1); }
+                                if is_list {
+                                    d.move_down();
+                                } else {
+                                    d.scroll_down(1);
+                                }
                             }
                             KeyCode::Char('k') | KeyCode::Up => {
-                                if is_list { d.move_up(); } else { d.scroll_up(1); }
+                                if is_list {
+                                    d.move_up();
+                                } else {
+                                    d.scroll_up(1);
+                                }
                             }
                             KeyCode::Char('d') => {
-                                if !is_list { d.scroll_down(10); }
+                                if !is_list {
+                                    d.scroll_down(10);
+                                }
                             }
                             KeyCode::Char('u') => {
-                                if !is_list { d.scroll_up(10); }
+                                if !is_list {
+                                    d.scroll_up(10);
+                                }
                             }
                             KeyCode::Char('g') | KeyCode::Home => {
                                 if is_list {
@@ -286,16 +304,32 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> anyhow::Result<()> {
                                 }
                             }
                             KeyCode::PageDown => {
-                                if is_list { d.page_down_list(page_size); } else { d.scroll_down(page_size as u16); }
+                                if is_list {
+                                    d.page_down_list(page_size);
+                                } else {
+                                    d.scroll_down(page_size as u16);
+                                }
                             }
                             KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                                if is_list { d.page_down_list(page_size); } else { d.scroll_down(page_size as u16); }
+                                if is_list {
+                                    d.page_down_list(page_size);
+                                } else {
+                                    d.scroll_down(page_size as u16);
+                                }
                             }
                             KeyCode::PageUp => {
-                                if is_list { d.page_up_list(page_size); } else { d.scroll_up(page_size as u16); }
+                                if is_list {
+                                    d.page_up_list(page_size);
+                                } else {
+                                    d.scroll_up(page_size as u16);
+                                }
                             }
                             KeyCode::Char('b') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                                if is_list { d.page_up_list(page_size); } else { d.scroll_up(page_size as u16); }
+                                if is_list {
+                                    d.page_up_list(page_size);
+                                } else {
+                                    d.scroll_up(page_size as u16);
+                                }
                             }
                             KeyCode::Tab => d.next_tab(),
                             KeyCode::BackTab => d.prev_tab(),
@@ -339,7 +373,7 @@ fn draw(f: &mut Frame, app: &mut App) {
     let chunks = Layout::vertical([
         Constraint::Length(1), // tab bar
         Constraint::Length(1), // divider
-        Constraint::Min(1),   // content
+        Constraint::Min(1),    // content
     ])
     .split(inner);
 
@@ -406,8 +440,59 @@ fn draw_tabs(f: &mut Frame, app: &App, area: Rect) {
         Tab::Notifications => titles.len() - 1,
     };
 
+    let max_titles_width = (area.width as usize).saturating_sub(16);
+
+    let get_width = |start: usize, end: usize| -> usize {
+        let mut w = 0;
+        if start > 0 {
+            w += 4; // left indicator: "... "
+        }
+        for i in start..=end {
+            w += titles[i].len() + if i == active { 2 } else { 0 };
+            if i < end {
+                w += 4; // spacing: "    "
+            }
+        }
+        if end < titles.len() - 1 {
+            w += 7; // right indicator: "    ..."
+        }
+        w
+    };
+
+    let mut start = active;
+    let mut end = active;
+
+    loop {
+        let mut expanded = false;
+
+        // Try expanding left
+        if start > 0 {
+            if get_width(start - 1, end) <= max_titles_width {
+                start -= 1;
+                expanded = true;
+            }
+        }
+
+        // Try expanding right
+        if end < titles.len() - 1 {
+            if get_width(start, end + 1) <= max_titles_width {
+                end += 1;
+                expanded = true;
+            }
+        }
+
+        if !expanded {
+            break;
+        }
+    }
+
     let mut spans = status_prefix();
-    for (i, title) in titles.iter().enumerate() {
+    if start > 0 {
+        spans.push(Span::styled("... ", style_dim()));
+    }
+
+    for i in start..=end {
+        let title = &titles[i];
         if i == active {
             spans.push(Span::styled(
                 format!("[{title}]"),
@@ -416,7 +501,14 @@ fn draw_tabs(f: &mut Frame, app: &App, area: Rect) {
         } else {
             spans.push(Span::styled(title.as_str(), style_dim()));
         }
+        if i < end {
+            spans.push(Span::raw("    "));
+        }
+    }
+
+    if end < titles.len() - 1 {
         spans.push(Span::raw("    "));
+        spans.push(Span::styled("...", style_dim()));
     }
 
     f.render_widget(Line::from(spans), area);
@@ -435,11 +527,8 @@ fn draw_content(f: &mut Frame, app: &mut App, area: Rect) {
     match app.tab {
         Tab::Repos => {
             if app.repo_list.filtering {
-                let chunks = Layout::vertical([
-                    Constraint::Length(1),
-                    Constraint::Min(1),
-                ])
-                .split(area);
+                let chunks =
+                    Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(area);
 
                 let filter_line = Line::from(vec![
                     Span::styled(" / ", style_accent()),
@@ -448,11 +537,8 @@ fn draw_content(f: &mut Frame, app: &mut App, area: Rect) {
                 f.render_widget(filter_line, chunks[0]);
                 app.repo_list.render(f, chunks[1], tick);
             } else if !app.repo_list.filter.is_empty() {
-                let chunks = Layout::vertical([
-                    Constraint::Length(1),
-                    Constraint::Min(1),
-                ])
-                .split(area);
+                let chunks =
+                    Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(area);
 
                 let info = Line::from(Span::styled(
                     format!(
@@ -483,33 +569,42 @@ fn draw_content(f: &mut Frame, app: &mut App, area: Rect) {
     }
 }
 
-
 fn draw_help(f: &mut Frame, area: Rect) {
     let help_lines = vec![
-        ("Navigation", vec![
-            ("j/k, ↑/↓", "Move up/down"),
-            ("g/G, Home/End", "Jump to top/bottom"),
-            ("PgDn/PgUp", "Page down/up"),
-            ("C-f/C-b", "Page down/up"),
-            ("d/u", "Half-page down/up (overview)"),
-            ("Tab/S-Tab", "Next/previous tab"),
-            ("Enter", "Open selected item"),
-            ("Esc/Bksp", "Go back"),
-        ]),
-        ("Actions", vec![
-            ("o", "Open in browser"),
-            ("/", "Filter repos / edit search"),
-            ("m", "Mark notification read"),
-            ("r", "Read in mdr (detail view)"),
-            ("t", "Switch theme"),
-            ("?", "Toggle this help"),
-            ("q", "Quit / go back"),
-        ]),
+        (
+            "Navigation",
+            vec![
+                ("j/k, ↑/↓", "Move up/down"),
+                ("g/G, Home/End", "Jump to top/bottom"),
+                ("PgDn/PgUp", "Page down/up"),
+                ("C-f/C-b", "Page down/up"),
+                ("d/u", "Half-page down/up (overview)"),
+                ("Tab/S-Tab", "Next/previous tab"),
+                ("Enter", "Open selected item"),
+                ("Esc/Bksp", "Go back"),
+            ],
+        ),
+        (
+            "Actions",
+            vec![
+                ("o", "Open in browser"),
+                ("/", "Filter repos / edit search"),
+                ("m", "Mark notification read"),
+                ("r", "Read in mdr (detail view)"),
+                ("t", "Switch theme"),
+                ("?", "Toggle this help"),
+                ("q", "Quit / go back"),
+            ],
+        ),
     ];
 
     // Calculate popup size
     let width = 54u16;
-    let height = help_lines.iter().map(|(_, items)| items.len() + 2).sum::<usize>() as u16 + 3;
+    let height = help_lines
+        .iter()
+        .map(|(_, items)| items.len() + 2)
+        .sum::<usize>() as u16
+        + 3;
 
     let x = area.x + (area.width.saturating_sub(width)) / 2;
     let y = area.y + (area.height.saturating_sub(height)) / 2;
@@ -618,7 +713,10 @@ fn draw_theme_picker(f: &mut Frame, app: &App, area: Rect) {
             Line::from(vec![
                 Span::styled("  › ", style_accent()),
                 Span::styled(
-                    format!("{display:<width$}", width = (inner.width as usize).saturating_sub(5)),
+                    format!(
+                        "{display:<width$}",
+                        width = (inner.width as usize).saturating_sub(5)
+                    ),
                     style_selected().bg(border()),
                 ),
             ])

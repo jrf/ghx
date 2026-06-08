@@ -1,9 +1,9 @@
 use crate::gh::{self, Repo};
 use ratatui::{
+    Frame,
     layout::Rect,
     text::{Line, Span},
     widgets::{List, ListItem, ListState},
-    Frame,
 };
 use std::collections::HashMap;
 use std::sync::mpsc;
@@ -126,10 +126,17 @@ impl RepoList {
             self.filtered_indices = (0..self.repos.len()).collect();
         } else {
             let query = self.filter.to_lowercase();
-            self.filtered_indices = self.repos.iter().enumerate()
+            self.filtered_indices = self
+                .repos
+                .iter()
+                .enumerate()
                 .filter(|(_, r)| {
                     r.full_name.to_lowercase().contains(&query)
-                        || r.description.as_deref().unwrap_or("").to_lowercase().contains(&query)
+                        || r.description
+                            .as_deref()
+                            .unwrap_or("")
+                            .to_lowercase()
+                            .contains(&query)
                 })
                 .map(|(i, _)| i)
                 .collect();
@@ -142,7 +149,8 @@ impl RepoList {
     }
 
     pub fn selected_repo(&self) -> Option<&Repo> {
-        self.state.selected()
+        self.state
+            .selected()
             .and_then(|i| self.filtered_indices.get(i))
             .and_then(|&idx| self.repos.get(idx))
     }
@@ -231,27 +239,29 @@ impl RepoList {
             return;
         }
 
-        let items: Vec<ListItem> = self.filtered_indices.iter().map(|&idx| {
-            let repo = &self.repos[idx];
-            let mut spans = vec![
-                Span::styled(&repo.full_name, style_normal()),
-            ];
-            if repo.is_private {
-                spans.push(Span::styled(" ⊝", style_purple()));
-            }
-            if repo.star_count > 0 {
-                spans.push(Span::styled(format!(" *{}", repo.star_count), style_dim()));
-            }
-            if let Some(ref ts) = repo.updated_at {
-                spans.push(Span::styled(format!(" · {}", timeago(ts)), style_dim()));
-            }
-            if let Some(ref desc) = repo.description {
-                if !desc.is_empty() {
-                    spans.push(Span::styled(format!(" — {desc}"), style_dim()));
+        let items: Vec<ListItem> = self
+            .filtered_indices
+            .iter()
+            .map(|&idx| {
+                let repo = &self.repos[idx];
+                let mut spans = vec![Span::styled(&repo.full_name, style_normal())];
+                if repo.is_private {
+                    spans.push(Span::styled(" ⊝", style_purple()));
                 }
-            }
-            ListItem::new(Line::from(spans))
-        }).collect();
+                if repo.star_count > 0 {
+                    spans.push(Span::styled(format!(" *{}", repo.star_count), style_dim()));
+                }
+                if let Some(ref ts) = repo.updated_at {
+                    spans.push(Span::styled(format!(" · {}", timeago(ts)), style_dim()));
+                }
+                if let Some(ref desc) = repo.description {
+                    if !desc.is_empty() {
+                        spans.push(Span::styled(format!(" — {desc}"), style_dim()));
+                    }
+                }
+                ListItem::new(Line::from(spans))
+            })
+            .collect();
 
         let list = List::new(items)
             .highlight_style(style_selected())

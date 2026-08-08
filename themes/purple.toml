@@ -19,6 +19,8 @@ blue = "#7788ee"
 [ui]
 border = "fg_muted"
 accent = "magenta"
+selection = "blue"
+key = "cyan"
 text = "fg"
 text_bright = "fg_bright"
 text_dim = "fg_dim"

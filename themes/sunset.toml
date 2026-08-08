@@ -17,6 +17,8 @@ amber = "#d4883e"
 [ui]
 border = "fg_muted"
 accent = "orange"
+selection = "yellow"
+key = "cyan"
 text = "fg"
 text_bright = "fg_bright"
 text_dim = "fg_dim"

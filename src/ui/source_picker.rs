@@ -140,7 +140,7 @@ impl SourcePicker {
         .split(inner);
         let filter_line = if self.filtering {
             Line::from(vec![
-                Span::styled(" / ", style_accent()),
+                Span::styled(" / ", style_key()),
                 Span::styled(format!("{}\u{2588}", self.filter), style_normal()),
             ])
         } else if self.filter.is_empty() {
@@ -211,18 +211,18 @@ impl SourcePicker {
 
         let status = if self.filtering {
             vec![
-                Span::styled(" Enter", style_accent()),
+                Span::styled(" Enter", style_key()),
                 Span::styled(" select    ", style_dim()),
-                Span::styled("Esc", style_accent()),
+                Span::styled("Esc", style_key()),
                 Span::styled(" clear", style_dim()),
             ]
         } else {
             vec![
-                Span::styled(" Enter", style_accent()),
+                Span::styled(" Enter", style_key()),
                 Span::styled(" select    ", style_dim()),
-                Span::styled("/", style_accent()),
+                Span::styled("/", style_key()),
                 Span::styled(" filter    ", style_dim()),
-                Span::styled("Esc", style_accent()),
+                Span::styled("Esc", style_key()),
                 Span::styled(" close", style_dim()),
             ]
         };

@@ -9,7 +9,7 @@ use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Layout, Rect},
-    style::{Modifier, Style},
+    style::Style,
     text::{Line, Span},
     widgets::{Block, Borders},
 };
@@ -570,7 +570,7 @@ fn draw_breadcrumb(f: &mut Frame, app: &App, area: Rect) {
                 spans.push(Span::styled(" › ", style_dim()));
                 spans.push(Span::styled(
                     format!("{} #{}", detail.kind_label(), detail.number),
-                    style_bold().fg(accent()),
+                    style_bold().fg(heading()),
                 ));
             }
         }
@@ -592,7 +592,7 @@ fn draw_breadcrumb(f: &mut Frame, app: &App, area: Rect) {
             spans.push(Span::styled(section, style_normal()));
             if let Some(context) = context {
                 spans.push(Span::styled(" › ", style_dim()));
-                spans.push(Span::styled(context, style_bold().fg(accent())));
+                spans.push(Span::styled(context, style_bold().fg(heading())));
             }
         }
     }
@@ -648,10 +648,7 @@ fn draw_tabs(f: &mut Frame, app: &App, area: Rect) {
             spans.push(Span::raw("    "));
         }
         if index == active {
-            spans.push(Span::styled(
-                format!("[{title}]"),
-                style_accent().add_modifier(Modifier::BOLD),
-            ));
+            spans.push(Span::styled(format!("[{title}]"), style_selected()));
         } else {
             spans.push(Span::styled(title.clone(), style_dim()));
         }
@@ -683,7 +680,7 @@ fn draw_content(f: &mut Frame, app: &mut App, area: Rect) {
                     Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(area);
 
                 let filter_line = Line::from(vec![
-                    Span::styled(" / ", style_accent()),
+                    Span::styled(" / ", style_key()),
                     Span::styled(format!("{}\u{2588}", app.repo_list.filter), style_normal()),
                 ]);
                 f.render_widget(filter_line, chunks[0]);
@@ -721,7 +718,7 @@ fn draw_content(f: &mut Frame, app: &mut App, area: Rect) {
                     Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(area);
                 let line = if app.notif_list.filtering {
                     Line::from(vec![
-                        Span::styled(" / ", style_accent()),
+                        Span::styled(" / ", style_key()),
                         Span::styled(format!("{}\u{2588}", app.notif_list.filter), style_normal()),
                     ])
                 } else {
@@ -901,7 +898,7 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
         if index > 0 {
             spans.push(Span::styled("  ", style_dim()));
         }
-        spans.push(Span::styled(*key, style_accent()));
+        spans.push(Span::styled(*key, style_key()));
         spans.push(Span::styled(format!(" {label}"), style_dim()));
     }
     f.render_widget(Line::from(spans), area);
@@ -960,11 +957,11 @@ fn draw_help(f: &mut Frame, app: &App, area: Rect) {
     for (section, items) in &help_lines {
         lines.push(Line::from(Span::styled(
             format!(" {section}"),
-            style_bold().fg(accent()),
+            style_bold().fg(heading()),
         )));
         for (key, desc) in items {
             lines.push(Line::from(vec![
-                Span::styled(format!("  {key:<14}"), style_accent()),
+                Span::styled(format!("  {key:<14}"), style_key()),
                 Span::styled(*desc, style_normal()),
             ]));
         }
@@ -1023,7 +1020,7 @@ fn draw_actions(f: &mut Frame, app: &App, area: Rect) {
             break;
         }
         let line = Line::from(vec![
-            Span::styled(format!(" {key:<12}"), style_accent()),
+            Span::styled(format!(" {key:<12}"), style_key()),
             Span::styled(*description, style_normal()),
         ]);
         f.render_widget(
@@ -1088,7 +1085,7 @@ fn draw_theme_picker(f: &mut Frame, app: &App, area: Rect) {
         let display = name.replace('-', " ");
         let line = if i == app.theme_index {
             Line::from(vec![
-                Span::styled("  › ", style_accent()),
+                Span::styled("  › ", style_selected()),
                 Span::styled(
                     format!(
                         "{display:<width$}",
@@ -1109,11 +1106,11 @@ fn draw_theme_picker(f: &mut Frame, app: &App, area: Rect) {
     // Status line at bottom of popup
     let status_y = inner.y + inner.height - 1;
     let status = Line::from(vec![
-        Span::styled(" j/k", style_accent()),
+        Span::styled(" j/k", style_key()),
         Span::styled(":select  ", style_dim()),
-        Span::styled("enter", style_accent()),
+        Span::styled("enter", style_key()),
         Span::styled(":ok  ", style_dim()),
-        Span::styled("esc", style_accent()),
+        Span::styled("esc", style_key()),
         Span::styled(":cancel", style_dim()),
     ]);
     f.render_widget(status, Rect::new(inner.x, status_y, inner.width, 1));
@@ -1146,6 +1143,10 @@ mod tests {
         assert!(breadcrumb.contains("Repositories › Synthetic Organization"));
         assert!(tabs.contains("[Repositories]    Lists    Search    Notifications"));
         assert!(!tabs.contains("Synthetic Organization"));
+        let theme = theme::current();
+        assert_eq!(buffer[(23, 1)].fg, theme.heading);
+        assert_eq!(buffer[(2, 2)].fg, theme.selection);
+        assert_eq!(buffer[(2, 22)].fg, theme.key);
     }
 
     #[test]

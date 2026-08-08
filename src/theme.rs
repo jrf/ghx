@@ -11,6 +11,8 @@ pub struct Theme {
     pub fg: Color,
     pub dim: Color,
     pub accent: Color,
+    pub selection: Color,
+    pub key: Color,
     pub border: Color,
     pub red: Color,
     pub green: Color,
@@ -124,6 +126,8 @@ fn fallback() -> Theme {
         fg: hex(0xc8, 0xd3, 0xf5),
         dim: hex(0x63, 0x6d, 0xa6),
         accent: hex(0xc0, 0x99, 0xff),
+        selection: hex(0x82, 0xaa, 0xff),
+        key: hex(0x86, 0xe1, 0xfc),
         border: hex(0x3b, 0x42, 0x61),
         red: hex(0xff, 0x75, 0x7f),
         green: hex(0xc3, 0xe8, 0x8d),
@@ -193,6 +197,8 @@ fn parse_theme(content: &str) -> Option<Theme> {
 
     let color = |name: &str| -> Option<Color> { colors.get(name).copied() };
 
+    let accent = resolve("accent").unwrap_or(hex(0xc0, 0x99, 0xff));
+
     Some(Theme {
         bg: color("bg").unwrap_or(hex(0x22, 0x24, 0x36)),
         fg: resolve("text")
@@ -201,15 +207,19 @@ fn parse_theme(content: &str) -> Option<Theme> {
         dim: resolve("text_dim")
             .or_else(|| color("fg_dim"))
             .unwrap_or(hex(0x63, 0x6d, 0xa6)),
-        accent: resolve("accent").unwrap_or(hex(0xc0, 0x99, 0xff)),
+        accent,
+        selection: resolve("selection")
+            .or_else(|| resolve("heading"))
+            .unwrap_or(accent),
+        key: resolve("key").or_else(|| color("cyan")).unwrap_or(accent),
         border: resolve("border")
             .or_else(|| color("fg_muted"))
             .unwrap_or(hex(0x3b, 0x42, 0x61)),
         red: color("red").unwrap_or(hex(0xff, 0x75, 0x7f)),
         green: color("green").unwrap_or(hex(0xc3, 0xe8, 0x8d)),
         yellow: color("yellow").unwrap_or(hex(0xff, 0xc7, 0x77)),
-        purple: color("magenta")
-            .or_else(|| color("purple"))
+        purple: color("purple")
+            .or_else(|| color("magenta"))
             .unwrap_or(hex(0xfc, 0xa7, 0xea)),
         heading: resolve("heading").unwrap_or(hex(0x82, 0xaa, 0xff)),
     })
@@ -235,4 +245,22 @@ fn parse_hex_color(s: &str) -> Option<Color> {
 
 const fn hex(r: u8, g: u8, b: u8) -> Color {
     Color::Rgb(r, g, b)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tokyo_night_moon_assigns_distinct_semantic_colors() {
+        let theme = parse_theme(include_str!("../themes/tokyo-night-moon.toml")).unwrap();
+
+        assert_eq!(theme.accent, hex(0xc0, 0x99, 0xff));
+        assert_eq!(theme.selection, hex(0x82, 0xaa, 0xff));
+        assert_eq!(theme.key, hex(0x86, 0xe1, 0xfc));
+        assert_eq!(theme.green, hex(0xc3, 0xe8, 0x8d));
+        assert_eq!(theme.purple, hex(0xfc, 0xa7, 0xea));
+        assert_ne!(theme.accent, theme.selection);
+        assert_ne!(theme.selection, theme.key);
+    }
 }

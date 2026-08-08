@@ -346,7 +346,7 @@ impl RepoDetailView {
             .split(area);
             let line = if self.filtering {
                 Line::from(vec![
-                    Span::styled(" / ", style_accent()),
+                    Span::styled(" / ", style_key()),
                     Span::styled(format!("{}\u{2588}", self.filter), style_normal()),
                 ])
             } else {
@@ -399,7 +399,7 @@ impl RepoDetailView {
 
         lines.push(Line::from(Span::styled(
             format!(" {}", detail.full_name),
-            style_bold().fg(accent()),
+            style_bold().fg(heading()),
         )));
         lines.push(Line::default());
 
@@ -412,7 +412,7 @@ impl RepoDetailView {
 
         let mut stats = Vec::new();
         if let Some(ref lang) = detail.primary_language {
-            stats.push(Span::styled(format!(" {} ", lang.name), style_accent()));
+            stats.push(Span::styled(format!(" {} ", lang.name), style_key()));
         }
         stats.push(Span::styled(
             format!("★ {} ", detail.star_count),

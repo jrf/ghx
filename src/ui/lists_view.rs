@@ -297,7 +297,7 @@ impl ListsView {
             .split(area);
             let filter_line = if self.filtering {
                 Line::from(vec![
-                    Span::styled(" / ", style_accent()),
+                    Span::styled(" / ", style_key()),
                     Span::styled(format!("{}\u{2588}", self.filter), style_normal()),
                 ])
             } else {

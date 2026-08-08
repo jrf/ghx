@@ -130,7 +130,7 @@ impl SearchView {
         // Search input
         let cursor = if self.editing { "\u{2588}" } else { "" };
         let input_line = Line::from(vec![
-            Span::styled(" / ", style_accent()),
+            Span::styled(" / ", style_key()),
             Span::styled(format!("{}{cursor}", self.query), style_normal()),
         ]);
         f.render_widget(input_line, chunks[0]);

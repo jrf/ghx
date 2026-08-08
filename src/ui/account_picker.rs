@@ -252,9 +252,9 @@ impl AccountPicker {
             ))
         } else {
             Line::from(vec![
-                Span::styled(" Enter", style_accent()),
+                Span::styled(" Enter", style_key()),
                 Span::styled(" switch    ", style_dim()),
-                Span::styled("Esc", style_accent()),
+                Span::styled("Esc", style_key()),
                 Span::styled(" close", style_dim()),
             ])
         };

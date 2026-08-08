@@ -17,6 +17,8 @@ magenta = "#88cc77"
 [ui]
 border = "fg_muted"
 accent = "green"
+selection = "fg_bright"
+key = "cyan"
 text = "fg"
 text_bright = "fg_bright"
 text_dim = "fg_dim"

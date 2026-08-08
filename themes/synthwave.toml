@@ -19,6 +19,8 @@ purple = "#bb9af7"
 [ui]
 border = "fg_muted"
 accent = "hot_pink"
+selection = "neon_blue"
+key = "cyan"
 text = "fg"
 text_bright = "fg_bright"
 text_dim = "fg_dim"

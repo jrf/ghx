@@ -21,6 +21,8 @@ teal = "#4fd6be"
 [ui]
 border = "fg_gutter"
 accent = "magenta"
+selection = "blue"
+key = "cyan"
 text = "fg"
 text_bright = "fg_bright"
 text_dim = "comment"

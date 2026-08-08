@@ -14,6 +14,8 @@ red = "#ff5555"
 [ui]
 border = "fg_muted"
 accent = "fg_bright"
+selection = "fg_bright"
+key = "gray_light"
 text = "fg"
 text_bright = "fg_bright"
 text_dim = "fg_dim"

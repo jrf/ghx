@@ -22,6 +22,10 @@ A TUI for browsing GitHub from the terminal, powered by the `gh` CLI.
 - Breadcrumb titles and context-aware action hints on every screen
 - Built-in and custom color themes
 
+### Theme roles
+
+Custom themes live in `~/.config/ghx/themes/`. Their `[ui]` section can assign `accent` for branded chrome, `selection` for active tabs and rows, `key` for shortcut and filter prompts, and `heading` for titles. Themes without the newer `selection` or `key` entries remain compatible through palette-based fallbacks.
+
 ## Requirements
 
 - [Rust and Cargo](https://www.rust-lang.org/tools/install) with Rust 2024 Edition support

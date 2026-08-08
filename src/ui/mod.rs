@@ -16,7 +16,7 @@ const SPINNER_FRAMES: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦
 pub fn spinner_line(tick: usize, msg: &str) -> Line<'static> {
     let frame = SPINNER_FRAMES[tick / 2 % SPINNER_FRAMES.len()];
     Line::from(vec![
-        Span::styled(format!(" {frame} "), style_accent()),
+        Span::styled(format!(" {frame} "), style_key()),
         Span::styled(msg.to_string(), style_dim()),
     ])
 }
@@ -32,6 +32,15 @@ pub fn dim() -> Color {
 }
 pub fn accent() -> Color {
     theme::current().accent
+}
+pub fn selection() -> Color {
+    theme::current().selection
+}
+pub fn key() -> Color {
+    theme::current().key
+}
+pub fn heading() -> Color {
+    theme::current().heading
 }
 pub fn border() -> Color {
     theme::current().border
@@ -56,12 +65,14 @@ pub fn style_dim() -> Style {
     Style::default().fg(dim())
 }
 
-pub fn style_accent() -> Style {
-    Style::default().fg(accent())
+pub fn style_key() -> Style {
+    Style::default().fg(key())
 }
 
 pub fn style_selected() -> Style {
-    Style::default().fg(accent()).add_modifier(Modifier::BOLD)
+    Style::default()
+        .fg(selection())
+        .add_modifier(Modifier::BOLD)
 }
 
 pub fn style_bold() -> Style {

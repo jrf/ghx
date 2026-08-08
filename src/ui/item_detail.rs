@@ -236,7 +236,7 @@ impl ItemDetailView {
                 } else if line.starts_with('-') {
                     Style::default().fg(red())
                 } else if line.starts_with("@@") {
-                    style_accent()
+                    style_key()
                 } else if line.starts_with("diff --git") {
                     style_bold().fg(purple())
                 } else {

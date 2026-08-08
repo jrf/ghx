@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Deserializer};
-use std::process::Command;
+use std::{collections::HashMap, env, process::Command};
 
 fn null_as_default<'de, D, T>(deserializer: D) -> std::result::Result<T, D::Error>
 where
@@ -145,6 +145,62 @@ pub struct Notification {
     pub updated_at: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ItemKind {
+    Issue,
+    PullRequest,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ItemTarget {
+    pub repo: String,
+    pub number: u32,
+    pub kind: ItemKind,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct GitHubAccount {
+    pub host: String,
+    pub login: String,
+    pub active: bool,
+    pub state: String,
+    #[serde(rename = "tokenSource", default)]
+    pub token_source: String,
+}
+
+impl GitHubAccount {
+    pub fn uses_environment_token(&self) -> bool {
+        matches!(
+            self.token_source.as_str(),
+            "GH_TOKEN" | "GITHUB_TOKEN" | "GH_ENTERPRISE_TOKEN" | "GITHUB_ENTERPRISE_TOKEN"
+        )
+    }
+}
+
+#[derive(Deserialize)]
+struct AuthStatus {
+    hosts: HashMap<String, Vec<GitHubAccount>>,
+}
+
+impl Notification {
+    pub fn item_target(&self) -> Option<ItemTarget> {
+        let kind = match self.subject.kind.as_str() {
+            "Issue" => ItemKind::Issue,
+            "PullRequest" => ItemKind::PullRequest,
+            _ => return None,
+        };
+        let url = self.subject.url.as_deref()?;
+        let path = url.split(['?', '#']).next()?.trim_end_matches('/');
+        let number = path.rsplit('/').next()?.parse().ok()?;
+
+        Some(ItemTarget {
+            repo: self.repository.full_name.clone(),
+            number,
+            kind,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct NotifSubject {
     pub title: String,
@@ -228,6 +284,45 @@ pub struct TopicWrapper {
 }
 
 // --- API functions ---
+
+pub fn list_accounts() -> Result<Vec<GitHubAccount>> {
+    let host = env::var("GH_HOST")
+        .ok()
+        .filter(|host| !host.trim().is_empty())
+        .unwrap_or_else(|| "github.com".to_string());
+    let output = run(&["auth", "status", "--hostname", &host, "--json", "hosts"])?;
+    parse_accounts(&output)
+}
+
+fn parse_accounts(output: &str) -> Result<Vec<GitHubAccount>> {
+    let status: AuthStatus = serde_json::from_str(output)?;
+    let mut accounts: Vec<_> = status.hosts.into_values().flatten().collect();
+    accounts.sort_by(|left, right| {
+        left.host
+            .cmp(&right.host)
+            .then_with(|| right.active.cmp(&left.active))
+            .then_with(|| left.login.to_lowercase().cmp(&right.login.to_lowercase()))
+    });
+    Ok(accounts)
+}
+
+pub fn switch_account(host: &str, login: &str) -> Result<()> {
+    let token_variables: &[&str] = if host == "github.com" || host.ends_with(".ghe.com") {
+        &["GH_TOKEN", "GITHUB_TOKEN"]
+    } else {
+        &["GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"]
+    };
+    if let Some(variable) = token_variables
+        .iter()
+        .find(|variable| env::var_os(variable).is_some_and(|value| !value.is_empty()))
+    {
+        anyhow::bail!(
+            "{variable} overrides stored gh accounts; unset it before switching accounts"
+        );
+    }
+    run(&["auth", "switch", "--hostname", host, "--user", login])?;
+    Ok(())
+}
 
 pub fn list_repos(limit: u32) -> Result<Vec<Repo>> {
     let out = run(&[
@@ -404,7 +499,7 @@ pub fn search_repos(query: &str, limit: u32) -> Result<Vec<Repo>> {
 }
 
 pub fn clone_repo(repo: &str, target_dir: &str) -> Result<()> {
-    let name = repo.split('/').last().unwrap_or(repo);
+    let name = repo.split('/').next_back().unwrap_or(repo);
     let dest = format!("{target_dir}/{name}");
     if std::path::Path::new(&dest).exists() {
         anyhow::bail!("{dest} already exists");
@@ -515,4 +610,92 @@ pub fn open_issue(repo: &str, number: u32) {
 
 pub fn open_pr(repo: &str, number: u32) {
     let _ = open_in_browser(&format!("https://github.com/{repo}/pull/{number}"));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn notification(kind: &str, url: Option<&str>) -> Notification {
+        Notification {
+            id: "synthetic-thread".into(),
+            reason: "mention".into(),
+            subject: NotifSubject {
+                title: "Synthetic notification".into(),
+                kind: kind.into(),
+                url: url.map(String::from),
+            },
+            repository: NotifRepo {
+                full_name: "example/synthetic-repo".into(),
+            },
+            unread: true,
+            updated_at: None,
+        }
+    }
+
+    #[test]
+    fn resolves_issue_notification_target() {
+        let target = notification(
+            "Issue",
+            Some("https://api.github.com/repos/example/synthetic-repo/issues/42"),
+        )
+        .item_target()
+        .expect("issue notification should resolve");
+
+        assert_eq!(target.repo, "example/synthetic-repo");
+        assert_eq!(target.number, 42);
+        assert_eq!(target.kind, ItemKind::Issue);
+    }
+
+    #[test]
+    fn resolves_pull_request_notification_target_with_query() {
+        let target = notification(
+            "PullRequest",
+            Some("https://api.github.com/repos/example/synthetic-repo/pulls/7?source=test"),
+        )
+        .item_target()
+        .expect("pull request notification should resolve");
+
+        assert_eq!(target.number, 7);
+        assert_eq!(target.kind, ItemKind::PullRequest);
+    }
+
+    #[test]
+    fn ignores_unsupported_or_malformed_notifications() {
+        assert!(
+            notification("Release", Some("https://api.github.com/releases/1"))
+                .item_target()
+                .is_none()
+        );
+        assert!(
+            notification("Issue", Some("https://api.github.com/issues/not-a-number"))
+                .item_target()
+                .is_none()
+        );
+        assert!(notification("Issue", None).item_target().is_none());
+    }
+
+    #[test]
+    fn parses_and_orders_accounts_without_token_fields() {
+        let accounts = parse_accounts(
+            r#"{
+                "hosts": {
+                    "github.example.invalid": [
+                        {"host":"github.example.invalid","login":"enterprise-example","active":true,"state":"Logged in"}
+                    ],
+                    "github.com": [
+                        {"host":"github.com","login":"other-example","active":false,"state":"Logged in"},
+                        {"host":"github.com","login":"active-example","active":true,"state":"Logged in"}
+                    ]
+                }
+            }"#,
+        )
+        .expect("synthetic auth status should parse");
+
+        assert_eq!(accounts.len(), 3);
+        assert_eq!(accounts[0].host, "github.com");
+        assert_eq!(accounts[0].login, "active-example");
+        assert!(accounts[0].active);
+        assert_eq!(accounts[2].host, "github.example.invalid");
+    }
 }

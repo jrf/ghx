@@ -21,7 +21,7 @@ pub struct Theme {
 
 pub fn current() -> Theme {
     let guard = THEME.read().unwrap();
-    guard.clone().unwrap_or_else(|| fallback())
+    guard.clone().unwrap_or_else(fallback)
 }
 
 pub fn set_theme(theme: Theme) {
@@ -72,16 +72,14 @@ pub fn load_all_themes() -> Vec<(String, Theme)> {
     if let Ok(entries) = std::fs::read_dir(&user_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) == Some("toml") {
-                if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
-                    if let Ok(content) = std::fs::read_to_string(&path) {
-                        if let Some(theme) = parse_theme(&content) {
-                            // Remove existing embedded theme with same name
-                            themes.retain(|(n, _)| n != name);
-                            themes.push((name.to_string(), theme));
-                        }
-                    }
-                }
+            if path.extension().and_then(|e| e.to_str()) == Some("toml")
+                && let Some(name) = path.file_stem().and_then(|s| s.to_str())
+                && let Ok(content) = std::fs::read_to_string(&path)
+                && let Some(theme) = parse_theme(&content)
+            {
+                // Remove existing embedded theme with same name
+                themes.retain(|(n, _)| n != name);
+                themes.push((name.to_string(), theme));
             }
         }
     }

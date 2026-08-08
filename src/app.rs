@@ -1,15 +1,20 @@
 use crate::gh;
+use crate::gh::ItemKind;
 use crate::theme::{self, Theme};
+use crate::ui::account_picker::AccountPicker;
+use crate::ui::item_detail::ItemDetailView;
 use crate::ui::lists_view::ListsView;
 use crate::ui::notif_list::NotifList;
 use crate::ui::repo_detail::RepoDetailView;
 use crate::ui::repo_list::RepoList;
 use crate::ui::search::SearchView;
+use crate::ui::source_picker::SourcePicker;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Screen {
     Home,
     RepoDetail,
+    ItemDetail,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -25,19 +30,24 @@ pub struct App {
     pub tab: Tab,
     pub repo_list: RepoList,
     pub repo_detail: Option<RepoDetailView>,
+    pub item_detail: Option<ItemDetailView>,
     pub lists_view: ListsView,
     pub notif_list: NotifList,
     pub search: SearchView,
+    pub account_picker: AccountPicker,
+    pub source_picker: SourcePicker,
     pub selected_repo: Option<String>,
     pub context_repo: Option<String>,
     pub should_quit: bool,
     pub show_help: bool,
+    pub show_actions: bool,
     pub tick: usize,
     // Theme picker
     pub show_theme_picker: bool,
     pub themes: Vec<(String, Theme)>,
     pub theme_index: usize,
     pub original_theme_index: usize,
+    item_origin: Screen,
 }
 
 impl App {
@@ -54,18 +64,23 @@ impl App {
             tab: Tab::Repos,
             repo_list: RepoList::new(),
             repo_detail: None,
+            item_detail: None,
             lists_view: ListsView::new(),
             notif_list: NotifList::new(),
             search: SearchView::new(),
+            account_picker: AccountPicker::new(),
+            source_picker: SourcePicker::new(),
             selected_repo: None,
             context_repo,
             should_quit: false,
             show_help: false,
+            show_actions: false,
             tick: 0,
             show_theme_picker: false,
             themes,
             theme_index,
             original_theme_index: 0,
+            item_origin: Screen::Home,
         }
     }
 
@@ -79,6 +94,22 @@ impl App {
             self.repo_detail = Some(RepoDetailView::new(name));
             self.screen = Screen::RepoDetail;
         }
+    }
+
+    pub fn reload_after_account_switch(&mut self) {
+        self.screen = Screen::Home;
+        self.tab = Tab::Repos;
+        self.repo_list = RepoList::new();
+        self.repo_detail = None;
+        self.item_detail = None;
+        self.lists_view = ListsView::new();
+        self.notif_list = NotifList::new();
+        self.search = SearchView::new();
+        self.source_picker = SourcePicker::new();
+        self.selected_repo = None;
+        self.context_repo = None;
+        self.repo_list.load_orgs();
+        self.repo_list.load();
     }
 
     pub fn open_theme_picker(&mut self) {
@@ -106,49 +137,34 @@ impl App {
     }
 
     pub fn next_tab(&mut self) {
-        let total = self.repo_list.total_sources();
-        let current = self.repo_list.active_source_index();
-
-        match self.tab {
-            Tab::Repos => {
-                if current + 1 < total {
-                    self.repo_list.set_source_by_index(current + 1);
-                    self.repo_list.load();
-                } else {
-                    self.tab = Tab::Lists;
-                }
-            }
-            Tab::Lists => self.tab = Tab::Search,
-            Tab::Search => self.tab = Tab::Notifications,
-            Tab::Notifications => {
-                self.tab = Tab::Repos;
-                self.repo_list.set_source_by_index(0);
-                self.repo_list.load();
-            }
-        }
+        self.tab = match self.tab {
+            Tab::Repos => Tab::Lists,
+            Tab::Lists => Tab::Search,
+            Tab::Search => Tab::Notifications,
+            Tab::Notifications => Tab::Repos,
+        };
     }
 
     pub fn prev_tab(&mut self) {
-        let total = self.repo_list.total_sources();
-        let current = self.repo_list.active_source_index();
+        self.tab = match self.tab {
+            Tab::Repos => Tab::Notifications,
+            Tab::Lists => Tab::Repos,
+            Tab::Search => Tab::Lists,
+            Tab::Notifications => Tab::Search,
+        };
+    }
 
-        match self.tab {
-            Tab::Repos => {
-                if current > 0 {
-                    self.repo_list.set_source_by_index(current - 1);
-                    self.repo_list.load();
-                } else {
-                    self.tab = Tab::Notifications;
-                }
-            }
-            Tab::Lists => {
-                self.tab = Tab::Repos;
-                self.repo_list.set_source_by_index(total - 1);
-                self.repo_list.load();
-            }
-            Tab::Search => self.tab = Tab::Lists,
-            Tab::Notifications => self.tab = Tab::Search,
-        }
+    pub fn open_source_picker(&mut self) {
+        self.source_picker.open(&self.repo_list);
+    }
+
+    pub fn select_repo_source(&mut self, index: usize) {
+        self.screen = Screen::Home;
+        self.tab = Tab::Repos;
+        self.repo_detail = None;
+        self.item_detail = None;
+        self.selected_repo = None;
+        self.repo_list.select_source_by_index(index);
     }
 
     pub fn on_enter(&mut self) {
@@ -172,6 +188,32 @@ impl App {
                     self.enter_repo(repo.full_name.clone());
                 }
             }
+            Screen::Home if self.tab == Tab::Notifications => {
+                if let Some(target) = self
+                    .notif_list
+                    .selected()
+                    .and_then(|notification| notification.item_target())
+                {
+                    self.enter_item(target.repo, target.number, target.kind);
+                }
+            }
+            Screen::RepoDetail => {
+                let selected = self
+                    .repo_detail
+                    .as_ref()
+                    .and_then(|detail| match detail.tab {
+                        crate::ui::repo_detail::RepoTab::Issues => detail
+                            .selected_issue_number()
+                            .map(|number| (number, ItemKind::Issue)),
+                        crate::ui::repo_detail::RepoTab::PullRequests => detail
+                            .selected_pr_number()
+                            .map(|number| (number, ItemKind::PullRequest)),
+                        crate::ui::repo_detail::RepoTab::Overview => None,
+                    });
+                if let (Some(repo), Some((number, kind))) = (self.selected_repo.clone(), selected) {
+                    self.enter_item(repo, number, kind);
+                }
+            }
             _ => {}
         }
     }
@@ -182,8 +224,22 @@ impl App {
         self.screen = Screen::RepoDetail;
     }
 
+    fn enter_item(&mut self, repo: String, number: u32, kind: ItemKind) {
+        self.item_origin = self.screen;
+        self.selected_repo = Some(repo.clone());
+        self.item_detail = Some(ItemDetailView::new(repo, number, kind));
+        self.screen = Screen::ItemDetail;
+    }
+
     pub fn go_back(&mut self) {
         match self.screen {
+            Screen::ItemDetail => {
+                self.screen = self.item_origin;
+                self.item_detail = None;
+                if self.screen == Screen::Home {
+                    self.selected_repo = None;
+                }
+            }
             Screen::RepoDetail => {
                 self.screen = Screen::Home;
                 self.repo_detail = None;
@@ -210,30 +266,76 @@ impl App {
                     gh::open_repo(&repo.full_name);
                 }
             }
+            Screen::Home if self.tab == Tab::Notifications => {
+                if let Some(notification) = self.notif_list.selected() {
+                    if let Some(target) = notification.item_target() {
+                        match target.kind {
+                            ItemKind::Issue => gh::open_issue(&target.repo, target.number),
+                            ItemKind::PullRequest => gh::open_pr(&target.repo, target.number),
+                        }
+                    } else {
+                        gh::open_repo(&notification.repository.full_name);
+                    }
+                }
+            }
             Screen::RepoDetail => {
-                if let Some(ref detail) = self.repo_detail {
-                    if let Some(ref name) = self.selected_repo {
-                        match detail.tab {
-                            crate::ui::repo_detail::RepoTab::Issues => {
-                                if let Some(number) = detail.selected_issue_number() {
-                                    gh::open_issue(name, number);
-                                } else {
-                                    gh::open_repo(name);
-                                }
+                if let Some(ref detail) = self.repo_detail
+                    && let Some(ref name) = self.selected_repo
+                {
+                    match detail.tab {
+                        crate::ui::repo_detail::RepoTab::Issues => {
+                            if let Some(number) = detail.selected_issue_number() {
+                                gh::open_issue(name, number);
+                            } else {
+                                gh::open_repo(name);
                             }
-                            crate::ui::repo_detail::RepoTab::PullRequests => {
-                                if let Some(number) = detail.selected_pr_number() {
-                                    gh::open_pr(name, number);
-                                } else {
-                                    gh::open_repo(name);
-                                }
+                        }
+                        crate::ui::repo_detail::RepoTab::PullRequests => {
+                            if let Some(number) = detail.selected_pr_number() {
+                                gh::open_pr(name, number);
+                            } else {
+                                gh::open_repo(name);
                             }
-                            _ => gh::open_repo(name),
+                        }
+                        _ => gh::open_repo(name),
+                    }
+                }
+            }
+            Screen::ItemDetail => {
+                if let Some(ref detail) = self.item_detail {
+                    match detail.kind {
+                        ItemKind::Issue => {
+                            gh::open_issue(&detail.repo_name, detail.number);
+                        }
+                        ItemKind::PullRequest => {
+                            gh::open_pr(&detail.repo_name, detail.number);
                         }
                     }
                 }
             }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn home_tabs_cycle_without_changing_repository_source() {
+        let mut app = App::new(None);
+        app.repo_list.set_source_by_index(1);
+
+        app.next_tab();
+        assert_eq!(app.tab, Tab::Lists);
+        app.next_tab();
+        assert_eq!(app.tab, Tab::Search);
+        app.next_tab();
+        assert_eq!(app.tab, Tab::Notifications);
+        app.next_tab();
+
+        assert_eq!(app.tab, Tab::Repos);
+        assert_eq!(app.repo_list.active_source_index(), 1);
     }
 }

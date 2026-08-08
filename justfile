@@ -1,8 +1,15 @@
-default: install
+_default:
+    @just --list
 
 # Build in debug mode
 build:
     cargo build
+
+# Run formatting, linting, and tests
+check:
+    cargo fmt --all --check
+    cargo clippy --all-targets --all-features -- -D warnings
+    cargo test
 
 # Build in release mode
 release:

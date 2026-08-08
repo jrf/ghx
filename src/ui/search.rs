@@ -55,38 +55,38 @@ impl SearchView {
     }
 
     pub fn poll(&mut self) {
-        if let Some(ref rx) = self.rx {
-            if let Ok(result) = rx.try_recv() {
-                self.rx = None;
-                self.loading = false;
-                match result {
-                    Ok(repos) => {
-                        self.results = repos;
-                        if !self.results.is_empty() {
-                            self.state.select(Some(0));
-                        } else {
-                            self.state.select(None);
-                        }
+        if let Some(ref rx) = self.rx
+            && let Ok(result) = rx.try_recv()
+        {
+            self.rx = None;
+            self.loading = false;
+            match result {
+                Ok(repos) => {
+                    self.results = repos;
+                    if !self.results.is_empty() {
+                        self.state.select(Some(0));
+                    } else {
+                        self.state.select(None);
                     }
-                    Err(e) => self.error = Some(e),
                 }
+                Err(e) => self.error = Some(e),
             }
         }
     }
 
     pub fn move_down(&mut self) {
-        if let Some(i) = self.state.selected() {
-            if i + 1 < self.results.len() {
-                self.state.select(Some(i + 1));
-            }
+        if let Some(i) = self.state.selected()
+            && i + 1 < self.results.len()
+        {
+            self.state.select(Some(i + 1));
         }
     }
 
     pub fn move_up(&mut self) {
-        if let Some(i) = self.state.selected() {
-            if i > 0 {
-                self.state.select(Some(i - 1));
-            }
+        if let Some(i) = self.state.selected()
+            && i > 0
+        {
+            self.state.select(Some(i - 1));
         }
     }
 
@@ -173,10 +173,10 @@ impl SearchView {
                 if repo.star_count > 0 {
                     spans.push(Span::styled(format!(" *{}", repo.star_count), style_dim()));
                 }
-                if let Some(ref desc) = repo.description {
-                    if !desc.is_empty() {
-                        spans.push(Span::styled(format!(" — {desc}"), style_dim()));
-                    }
+                if let Some(ref desc) = repo.description
+                    && !desc.is_empty()
+                {
+                    spans.push(Span::styled(format!(" — {desc}"), style_dim()));
                 }
                 ListItem::new(Line::from(spans))
             })

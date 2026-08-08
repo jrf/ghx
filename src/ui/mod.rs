@@ -1,8 +1,11 @@
+pub mod account_picker;
+pub mod item_detail;
 pub mod lists_view;
 pub mod notif_list;
 pub mod repo_detail;
 pub mod repo_list;
 pub mod search;
+pub mod source_picker;
 
 use crate::theme;
 use ratatui::style::{Color, Modifier, Style};
@@ -122,13 +125,13 @@ fn parse_rfc3339(s: &str) -> Result<u64, ()> {
         30,
         31,
     ];
-    for m in 0..(month - 1) as usize {
-        days += month_days[m];
+    for days_in_month in month_days.iter().take((month - 1) as usize) {
+        days += days_in_month;
     }
     days += day - 1;
     Ok(days * 86400 + hour * 3600 + min * 60 + sec)
 }
 
 fn is_leap(y: u64) -> bool {
-    (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+    (y.is_multiple_of(4) && !y.is_multiple_of(100)) || y.is_multiple_of(400)
 }

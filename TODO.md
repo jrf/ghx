@@ -4,8 +4,6 @@
 
 - [ ] Config file (~/.config/ghx/config.toml) #feature
 - [ ] Dashboard mode (overview of notifications, open PRs, review requests) #feature
-- [ ] Mark notifications as read #feature
-- [ ] Navigate from notification to its issue/PR #feature
 - [ ] Pagination / "load more" for lists #feature
 
 ## Next

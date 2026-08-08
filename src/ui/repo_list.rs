@@ -96,21 +96,21 @@ impl RepoList {
 
     /// Call this each frame to check for completed loads.
     pub fn poll(&mut self) {
-        if let Some(ref rx) = self.rx {
-            if let Ok(msg) = rx.try_recv() {
-                self.rx = None;
-                if msg.source == self.source {
-                    match msg.result {
-                        Ok(repos) => {
-                            self.cache.insert(msg.source, repos.clone());
-                            self.repos = repos;
-                            self.refilter();
-                            self.error = None;
-                        }
-                        Err(e) => self.error = Some(e),
+        if let Some(ref rx) = self.rx
+            && let Ok(msg) = rx.try_recv()
+        {
+            self.rx = None;
+            if msg.source == self.source {
+                match msg.result {
+                    Ok(repos) => {
+                        self.cache.insert(msg.source, repos.clone());
+                        self.repos = repos;
+                        self.refilter();
+                        self.error = None;
                     }
-                    self.loading = false;
+                    Err(e) => self.error = Some(e),
                 }
+                self.loading = false;
             }
         }
     }
@@ -156,18 +156,18 @@ impl RepoList {
     }
 
     pub fn move_down(&mut self) {
-        if let Some(i) = self.state.selected() {
-            if i + 1 < self.filtered_indices.len() {
-                self.state.select(Some(i + 1));
-            }
+        if let Some(i) = self.state.selected()
+            && i + 1 < self.filtered_indices.len()
+        {
+            self.state.select(Some(i + 1));
         }
     }
 
     pub fn move_up(&mut self) {
-        if let Some(i) = self.state.selected() {
-            if i > 0 {
-                self.state.select(Some(i - 1));
-            }
+        if let Some(i) = self.state.selected()
+            && i > 0
+        {
+            self.state.select(Some(i - 1));
         }
     }
 
@@ -205,6 +205,18 @@ impl RepoList {
         labels
     }
 
+    pub fn active_source_label(&self) -> String {
+        match self.source {
+            RepoSource::Mine => "My Repos".into(),
+            RepoSource::Starred => "Starred".into(),
+            RepoSource::Org(index) => self
+                .orgs
+                .get(index)
+                .cloned()
+                .unwrap_or_else(|| "Organization".into()),
+        }
+    }
+
     pub fn active_source_index(&self) -> usize {
         match self.source {
             RepoSource::Mine => 0,
@@ -225,6 +237,33 @@ impl RepoList {
         };
     }
 
+    pub fn select_source_by_index(&mut self, index: usize) -> bool {
+        if index >= self.total_sources() || index == self.active_source_index() {
+            return false;
+        }
+        self.set_source_by_index(index);
+        self.filter.clear();
+        self.filtering = false;
+        self.load();
+        true
+    }
+
+    pub fn select_next_source(&mut self) {
+        let total = self.total_sources();
+        if total > 1 {
+            let next = (self.active_source_index() + 1) % total;
+            self.select_source_by_index(next);
+        }
+    }
+
+    pub fn select_previous_source(&mut self) {
+        let total = self.total_sources();
+        if total > 1 {
+            let previous = (self.active_source_index() + total - 1) % total;
+            self.select_source_by_index(previous);
+        }
+    }
+
     pub fn render(&mut self, f: &mut Frame, area: Rect, tick: usize) {
         if self.loading {
             f.render_widget(spinner_line(tick, "Loading repositories..."), area);
@@ -236,6 +275,15 @@ impl RepoList {
                 Style::default().fg(red()),
             ));
             f.render_widget(line, area);
+            return;
+        }
+        if self.filtered_indices.is_empty() {
+            let message = if self.filter.is_empty() {
+                " No repositories found".to_string()
+            } else {
+                format!(" No repositories match ‘{}’", self.filter)
+            };
+            f.render_widget(Line::from(Span::styled(message, style_dim())), area);
             return;
         }
 
@@ -254,10 +302,10 @@ impl RepoList {
                 if let Some(ref ts) = repo.updated_at {
                     spans.push(Span::styled(format!(" · {}", timeago(ts)), style_dim()));
                 }
-                if let Some(ref desc) = repo.description {
-                    if !desc.is_empty() {
-                        spans.push(Span::styled(format!(" — {desc}"), style_dim()));
-                    }
+                if let Some(ref desc) = repo.description
+                    && !desc.is_empty()
+                {
+                    spans.push(Span::styled(format!(" — {desc}"), style_dim()));
                 }
                 ListItem::new(Line::from(spans))
             })

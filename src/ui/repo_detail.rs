@@ -30,7 +30,7 @@ impl RepoTab {
 }
 
 enum LoadMsg {
-    RepoDetail(Result<RepoDetail, String>),
+    RepoDetail(Box<Result<RepoDetail, String>>),
     Readme(Result<String, String>),
     Issues(Result<Vec<Issue>, String>),
     Prs(Result<Vec<PR>, String>),
@@ -54,6 +54,9 @@ pub struct RepoDetailView {
     pub issues_error: Option<String>,
     pub prs_error: Option<String>,
     pub list_state: ListState,
+    pub filter: String,
+    pub filtering: bool,
+    pub filtered_indices: Vec<usize>,
 
     rx: Option<mpsc::Receiver<LoadMsg>>,
 }
@@ -76,6 +79,9 @@ impl RepoDetailView {
             issues_error: None,
             prs_error: None,
             list_state: ListState::default(),
+            filter: String::new(),
+            filtering: false,
+            filtered_indices: Vec::new(),
             rx: None,
         };
         view.load_all(repo_name);
@@ -89,6 +95,9 @@ impl RepoDetailView {
             RepoTab::PullRequests => RepoTab::Overview,
         };
         self.scroll = 0;
+        self.filter.clear();
+        self.filtering = false;
+        self.refilter();
         self.list_state.select(if self.current_list_len() > 0 {
             Some(0)
         } else {
@@ -103,6 +112,9 @@ impl RepoDetailView {
             RepoTab::PullRequests => RepoTab::Issues,
         };
         self.scroll = 0;
+        self.filter.clear();
+        self.filtering = false;
+        self.refilter();
         self.list_state.select(if self.current_list_len() > 0 {
             Some(0)
         } else {
@@ -112,8 +124,7 @@ impl RepoDetailView {
 
     pub fn current_list_len(&self) -> usize {
         match self.tab {
-            RepoTab::Issues => self.issues.len(),
-            RepoTab::PullRequests => self.prs.len(),
+            RepoTab::Issues | RepoTab::PullRequests => self.filtered_indices.len(),
             RepoTab::Overview => 0,
         }
     }
@@ -123,18 +134,18 @@ impl RepoDetailView {
         if len == 0 {
             return;
         }
-        if let Some(i) = self.list_state.selected() {
-            if i + 1 < len {
-                self.list_state.select(Some(i + 1));
-            }
+        if let Some(i) = self.list_state.selected()
+            && i + 1 < len
+        {
+            self.list_state.select(Some(i + 1));
         }
     }
 
     pub fn move_up(&mut self) {
-        if let Some(i) = self.list_state.selected() {
-            if i > 0 {
-                self.list_state.select(Some(i - 1));
-            }
+        if let Some(i) = self.list_state.selected()
+            && i > 0
+        {
+            self.list_state.select(Some(i - 1));
         }
     }
 
@@ -166,12 +177,76 @@ impl RepoDetailView {
 
     pub fn selected_issue_number(&self) -> Option<u32> {
         let i = self.list_state.selected()?;
+        let &i = self.filtered_indices.get(i)?;
         self.issues.get(i).map(|issue| issue.number)
     }
 
     pub fn selected_pr_number(&self) -> Option<u32> {
         let i = self.list_state.selected()?;
+        let &i = self.filtered_indices.get(i)?;
         self.prs.get(i).map(|pr| pr.number)
+    }
+
+    pub fn refilter(&mut self) {
+        let query = self.filter.to_lowercase();
+        self.filtered_indices = match self.tab {
+            RepoTab::Issues => self
+                .issues
+                .iter()
+                .enumerate()
+                .filter(|(_, issue)| {
+                    query.is_empty()
+                        || issue.title.to_lowercase().contains(&query)
+                        || issue.number.to_string().contains(&query)
+                        || issue
+                            .author
+                            .as_ref()
+                            .is_some_and(|author| author.login.to_lowercase().contains(&query))
+                        || issue
+                            .labels
+                            .iter()
+                            .any(|label| label.name.to_lowercase().contains(&query))
+                })
+                .map(|(index, _)| index)
+                .collect(),
+            RepoTab::PullRequests => self
+                .prs
+                .iter()
+                .enumerate()
+                .filter(|(_, pr)| {
+                    query.is_empty()
+                        || pr.title.to_lowercase().contains(&query)
+                        || pr.number.to_string().contains(&query)
+                        || pr
+                            .author
+                            .as_ref()
+                            .is_some_and(|author| author.login.to_lowercase().contains(&query))
+                })
+                .map(|(index, _)| index)
+                .collect(),
+            RepoTab::Overview => Vec::new(),
+        };
+        self.list_state.select(if self.filtered_indices.is_empty() {
+            None
+        } else {
+            Some(0)
+        });
+    }
+
+    pub fn on_filter_key(&mut self, key: char) {
+        self.filter.push(key);
+        self.refilter();
+    }
+
+    pub fn on_filter_backspace(&mut self) {
+        self.filter.pop();
+        self.refilter();
+    }
+
+    pub fn clear_filter(&mut self) {
+        self.filter.clear();
+        self.filtering = false;
+        self.refilter();
     }
 
     fn load_all(&mut self, repo: String) {
@@ -187,7 +262,7 @@ impl RepoDetailView {
         let tx1 = tx.clone();
         thread::spawn(move || {
             let result = gh::view_repo(&r1).map_err(|e| e.to_string());
-            let _ = tx1.send(LoadMsg::RepoDetail(result));
+            let _ = tx1.send(LoadMsg::RepoDetail(Box::new(result)));
         });
 
         let r2 = repo.clone();
@@ -212,12 +287,13 @@ impl RepoDetailView {
     }
 
     pub fn poll(&mut self) {
+        let mut list_changed = false;
         if let Some(ref rx) = self.rx {
             while let Ok(msg) = rx.try_recv() {
                 match msg {
                     LoadMsg::RepoDetail(result) => {
                         self.loading = false;
-                        match result {
+                        match *result {
                             Ok(detail) => self.detail = Some(detail),
                             Err(e) => self.error = Some(e),
                         }
@@ -233,6 +309,7 @@ impl RepoDetailView {
                             Ok(issues) => self.issues = issues,
                             Err(e) => self.issues_error = Some(e),
                         }
+                        list_changed = true;
                     }
                     LoadMsg::Prs(result) => {
                         self.prs_loading = false;
@@ -240,9 +317,13 @@ impl RepoDetailView {
                             Ok(prs) => self.prs = prs,
                             Err(e) => self.prs_error = Some(e),
                         }
+                        list_changed = true;
                     }
                 }
             }
+        }
+        if list_changed {
+            self.refilter();
         }
     }
 
@@ -256,10 +337,42 @@ impl RepoDetailView {
     }
 
     pub fn render(&mut self, f: &mut Frame, area: Rect, tick: usize) {
+        let is_list = matches!(self.tab, RepoTab::Issues | RepoTab::PullRequests);
+        let content_area = if is_list && (self.filtering || !self.filter.is_empty()) {
+            let chunks = ratatui::layout::Layout::vertical([
+                ratatui::layout::Constraint::Length(1),
+                ratatui::layout::Constraint::Min(1),
+            ])
+            .split(area);
+            let line = if self.filtering {
+                Line::from(vec![
+                    Span::styled(" / ", style_accent()),
+                    Span::styled(format!("{}\u{2588}", self.filter), style_normal()),
+                ])
+            } else {
+                let total = match self.tab {
+                    RepoTab::Issues => self.issues.len(),
+                    RepoTab::PullRequests => self.prs.len(),
+                    RepoTab::Overview => 0,
+                };
+                Line::from(Span::styled(
+                    format!(
+                        " filter: {} ({}/{total})",
+                        self.filter,
+                        self.filtered_indices.len()
+                    ),
+                    style_dim(),
+                ))
+            };
+            f.render_widget(line, chunks[0]);
+            chunks[1]
+        } else {
+            area
+        };
         match self.tab {
-            RepoTab::Overview => self.render_overview(f, area, tick),
-            RepoTab::Issues => self.render_issues(f, area, tick),
-            RepoTab::PullRequests => self.render_prs(f, area, tick),
+            RepoTab::Overview => self.render_overview(f, content_area, tick),
+            RepoTab::Issues => self.render_issues(f, content_area, tick),
+            RepoTab::PullRequests => self.render_prs(f, content_area, tick),
         }
     }
 
@@ -290,11 +403,11 @@ impl RepoDetailView {
         )));
         lines.push(Line::default());
 
-        if let Some(ref desc) = detail.description {
-            if !desc.is_empty() {
-                lines.push(Line::from(Span::styled(format!(" {desc}"), style_normal())));
-                lines.push(Line::default());
-            }
+        if let Some(ref desc) = detail.description
+            && !desc.is_empty()
+        {
+            lines.push(Line::from(Span::styled(format!(" {desc}"), style_normal())));
+            lines.push(Line::default());
         }
 
         let mut stats = Vec::new();
@@ -350,13 +463,13 @@ impl RepoDetailView {
             )));
         }
 
-        if let Some(ref url) = detail.homepage_url {
-            if !url.is_empty() {
-                lines.push(Line::from(Span::styled(
-                    format!(" homepage: {url}"),
-                    style_dim(),
-                )));
-            }
+        if let Some(ref url) = detail.homepage_url
+            && !url.is_empty()
+        {
+            lines.push(Line::from(Span::styled(
+                format!(" homepage: {url}"),
+                style_dim(),
+            )));
         }
 
         lines.push(Line::default());
@@ -387,16 +500,22 @@ impl RepoDetailView {
             f.render_widget(line, area);
             return;
         }
-        if self.issues.is_empty() {
-            let line = Line::from(Span::styled(" No open issues", style_dim()));
+        if self.filtered_indices.is_empty() {
+            let message = if self.filter.is_empty() {
+                " No open issues".to_string()
+            } else {
+                format!(" No issues match ‘{}’", self.filter)
+            };
+            let line = Line::from(Span::styled(message, style_dim()));
             f.render_widget(line, area);
             return;
         }
 
         let items: Vec<ListItem> = self
-            .issues
+            .filtered_indices
             .iter()
-            .map(|issue| {
+            .map(|&index| {
+                let issue = &self.issues[index];
                 let state_style = match issue.state.as_str() {
                     "OPEN" => ratatui::style::Style::default().fg(green()),
                     "CLOSED" => ratatui::style::Style::default().fg(red()),
@@ -450,16 +569,22 @@ impl RepoDetailView {
             f.render_widget(line, area);
             return;
         }
-        if self.prs.is_empty() {
-            let line = Line::from(Span::styled(" No open pull requests", style_dim()));
+        if self.filtered_indices.is_empty() {
+            let message = if self.filter.is_empty() {
+                " No open pull requests".to_string()
+            } else {
+                format!(" No pull requests match ‘{}’", self.filter)
+            };
+            let line = Line::from(Span::styled(message, style_dim()));
             f.render_widget(line, area);
             return;
         }
 
         let items: Vec<ListItem> = self
-            .prs
+            .filtered_indices
             .iter()
-            .map(|pr| {
+            .map(|&index| {
+                let pr = &self.prs[index];
                 let check = pr.overall_check_status();
                 let check_span = match check {
                     CheckStatus::Pass => {

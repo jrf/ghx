@@ -25,6 +25,7 @@ pub struct ListsView {
     error: Option<String>,
     filter: String,
     pub filtering: bool,
+    filtered_name_indices: Vec<usize>,
     filtered_indices: Vec<usize>,
     rx: Option<mpsc::Receiver<Result<Vec<UserList>, String>>>,
 }
@@ -41,6 +42,7 @@ impl ListsView {
             error: None,
             filter: String::new(),
             filtering: false,
+            filtered_name_indices: Vec::new(),
             filtered_indices: Vec::new(),
             rx: None,
         }
@@ -66,25 +68,27 @@ impl ListsView {
     }
 
     pub fn poll(&mut self) {
-        if let Some(ref rx) = self.rx {
-            if let Ok(result) = rx.try_recv() {
-                self.rx = None;
-                self.loading = false;
-                match result {
-                    Ok(lists) => {
-                        self.lists = lists;
-                        if !self.lists.is_empty() {
-                            self.name_state.select(Some(0));
-                        }
-                    }
-                    Err(e) => self.error = Some(e),
+        if let Some(ref rx) = self.rx
+            && let Ok(result) = rx.try_recv()
+        {
+            self.rx = None;
+            self.loading = false;
+            match result {
+                Ok(lists) => {
+                    self.lists = lists;
+                    self.refilter();
                 }
+                Err(e) => self.error = Some(e),
             }
         }
     }
 
     pub fn is_browsing_repos(&self) -> bool {
         matches!(self.mode, ListsMode::Repos)
+    }
+
+    pub fn has_filter(&self) -> bool {
+        !self.filter.is_empty()
     }
 
     pub fn selected_repo(&self) -> Option<&Repo> {
@@ -102,7 +106,10 @@ impl ListsView {
         match self.mode {
             ListsMode::Names => {
                 if let Some(i) = self.name_state.selected() {
-                    self.selected_list = i;
+                    let Some(&selected_list) = self.filtered_name_indices.get(i) else {
+                        return;
+                    };
+                    self.selected_list = selected_list;
                     self.mode = ListsMode::Repos;
                     self.filter.clear();
                     self.filtering = false;
@@ -119,6 +126,7 @@ impl ListsView {
                 self.mode = ListsMode::Names;
                 self.filter.clear();
                 self.filtering = false;
+                self.refilter();
                 true
             }
             ListsMode::Names => false,
@@ -126,6 +134,24 @@ impl ListsView {
     }
 
     fn refilter(&mut self) {
+        if matches!(self.mode, ListsMode::Names) {
+            let query = self.filter.to_lowercase();
+            self.filtered_name_indices = self
+                .lists
+                .iter()
+                .enumerate()
+                .filter(|(_, list)| query.is_empty() || list.name.to_lowercase().contains(&query))
+                .map(|(index, _)| index)
+                .collect();
+            self.name_state
+                .select(if self.filtered_name_indices.is_empty() {
+                    None
+                } else {
+                    Some(0)
+                });
+            return;
+        }
+
         if let Some(list) = self.lists.get(self.selected_list) {
             if self.filter.is_empty() {
                 self.filtered_indices = (0..list.repos.len()).collect();
@@ -179,27 +205,37 @@ impl ListsView {
 
     fn current_len(&self) -> usize {
         match self.mode {
-            ListsMode::Names => self.lists.len(),
+            ListsMode::Names => self.filtered_name_indices.len(),
             ListsMode::Repos => self.filtered_indices.len(),
+        }
+    }
+
+    fn total_len(&self) -> usize {
+        match self.mode {
+            ListsMode::Names => self.lists.len(),
+            ListsMode::Repos => self
+                .lists
+                .get(self.selected_list)
+                .map_or(0, |list| list.repos.len()),
         }
     }
 
     pub fn move_down(&mut self) {
         let len = self.current_len();
         let state = self.current_state();
-        if let Some(i) = state.selected() {
-            if i + 1 < len {
-                state.select(Some(i + 1));
-            }
+        if let Some(i) = state.selected()
+            && i + 1 < len
+        {
+            state.select(Some(i + 1));
         }
     }
 
     pub fn move_up(&mut self) {
         let state = self.current_state();
-        if let Some(i) = state.selected() {
-            if i > 0 {
-                state.select(Some(i - 1));
-            }
+        if let Some(i) = state.selected()
+            && i > 0
+        {
+            state.select(Some(i - 1));
         }
     }
 
@@ -253,17 +289,55 @@ impl ListsView {
             return;
         }
 
+        let content_area = if self.filtering || !self.filter.is_empty() {
+            let chunks = ratatui::layout::Layout::vertical([
+                ratatui::layout::Constraint::Length(1),
+                ratatui::layout::Constraint::Min(1),
+            ])
+            .split(area);
+            let filter_line = if self.filtering {
+                Line::from(vec![
+                    Span::styled(" / ", style_accent()),
+                    Span::styled(format!("{}\u{2588}", self.filter), style_normal()),
+                ])
+            } else {
+                Line::from(Span::styled(
+                    format!(
+                        " filter: {} ({}/{})",
+                        self.filter,
+                        self.current_len(),
+                        self.total_len()
+                    ),
+                    style_dim(),
+                ))
+            };
+            f.render_widget(filter_line, chunks[0]);
+            chunks[1]
+        } else {
+            area
+        };
+
         match self.mode {
-            ListsMode::Names => self.render_names(f, area),
-            ListsMode::Repos => self.render_repos(f, area),
+            ListsMode::Names => self.render_names(f, content_area),
+            ListsMode::Repos => self.render_repos(f, content_area),
         }
     }
 
     fn render_names(&mut self, f: &mut Frame, area: Rect) {
+        if self.filtered_name_indices.is_empty() {
+            let message = if self.filter.is_empty() {
+                " No lists found".to_string()
+            } else {
+                format!(" No lists match ‘{}’", self.filter)
+            };
+            f.render_widget(Line::from(Span::styled(message, style_dim())), area);
+            return;
+        }
         let items: Vec<ListItem> = self
-            .lists
+            .filtered_name_indices
             .iter()
-            .map(|list| {
+            .map(|&index| {
+                let list = &self.lists[index];
                 let count = list.repos.len();
                 ListItem::new(Line::from(vec![
                     Span::styled(&list.name, style_normal()),
@@ -283,42 +357,15 @@ impl ListsView {
         let Some(user_list) = self.lists.get(self.selected_list) else {
             return;
         };
-
-        // Show filter bar if active
-        let content_area = if self.filtering {
-            let chunks = ratatui::layout::Layout::vertical([
-                ratatui::layout::Constraint::Length(1),
-                ratatui::layout::Constraint::Min(1),
-            ])
-            .split(area);
-
-            let filter_line = Line::from(vec![
-                Span::styled(" / ", style_accent()),
-                Span::styled(format!("{}\u{2588}", self.filter), style_normal()),
-            ]);
-            f.render_widget(filter_line, chunks[0]);
-            chunks[1]
-        } else if !self.filter.is_empty() {
-            let chunks = ratatui::layout::Layout::vertical([
-                ratatui::layout::Constraint::Length(1),
-                ratatui::layout::Constraint::Min(1),
-            ])
-            .split(area);
-
-            let info = Line::from(Span::styled(
-                format!(
-                    " filter: {} ({}/{})",
-                    self.filter,
-                    self.filtered_indices.len(),
-                    user_list.repos.len()
-                ),
-                style_dim(),
-            ));
-            f.render_widget(info, chunks[0]);
-            chunks[1]
-        } else {
-            area
-        };
+        if self.filtered_indices.is_empty() {
+            let message = if self.filter.is_empty() {
+                " No repositories in this list".to_string()
+            } else {
+                format!(" No repositories match ‘{}’", self.filter)
+            };
+            f.render_widget(Line::from(Span::styled(message, style_dim())), area);
+            return;
+        }
 
         let items: Vec<ListItem> = self
             .filtered_indices
@@ -335,10 +382,10 @@ impl ListsView {
                 if let Some(ref ts) = repo.updated_at {
                     spans.push(Span::styled(format!(" · {}", timeago(ts)), style_dim()));
                 }
-                if let Some(ref desc) = repo.description {
-                    if !desc.is_empty() {
-                        spans.push(Span::styled(format!(" — {desc}"), style_dim()));
-                    }
+                if let Some(ref desc) = repo.description
+                    && !desc.is_empty()
+                {
+                    spans.push(Span::styled(format!(" — {desc}"), style_dim()));
                 }
                 ListItem::new(Line::from(spans))
             })
@@ -348,6 +395,6 @@ impl ListsView {
             .highlight_style(style_selected())
             .highlight_symbol("> ");
 
-        f.render_stateful_widget(list, content_area, &mut self.repo_state);
+        f.render_stateful_widget(list, area, &mut self.repo_state);
     }
 }

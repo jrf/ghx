@@ -24,7 +24,7 @@ A TUI for browsing GitHub from the terminal, powered by the `gh` CLI.
 
 ### Theme roles
 
-Custom themes live in `~/.config/ghx/themes/`. Their `[ui]` section can assign `accent` for branded chrome, `selection` for active tabs and rows, `key` for shortcut and filter prompts, and `heading` for titles. Themes without the newer `selection` or `key` entries remain compatible through palette-based fallbacks.
+Shared custom themes live in `~/.config/themes/`. App-specific overrides can be placed in `~/.config/ghx/themes/`. Their `[ui]` section can assign `accent` for branded chrome, `selection` for active tabs and rows, `key` for shortcut and filter prompts, and `heading` for titles. Themes without the newer `selection` or `key` entries remain compatible through palette-based fallbacks.
 
 The built-in families include Tokyo Night (night, storm, moon, and day) and Catppuccin (latte, frappe, macchiato, and mocha), plus the existing classic, fire, matrix, monochrome, ocean, purple, sunset, and synthwave themes. The palettes come from [folke/tokyonight.nvim](https://github.com/folke/tokyonight.nvim/tree/main/lua/tokyonight/colors) and [catppuccin/palette](https://github.com/catppuccin/palette).
 

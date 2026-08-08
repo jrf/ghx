@@ -93,10 +93,17 @@ pub fn load_all_themes() -> Vec<(String, Theme)> {
         }
     }
 
-    // Load user themes from ~/.config/ghx/themes/ (override embedded ones)
+    // Load shared themes, then app-specific themes as overrides.
     let home = std::env::var("HOME").unwrap_or_default();
-    let user_dir = format!("{home}/.config/ghx/themes");
-    if let Ok(entries) = std::fs::read_dir(&user_dir) {
+    load_theme_dir(&mut themes, &format!("{home}/.config/themes"));
+    load_theme_dir(&mut themes, &format!("{home}/.config/ghx/themes"));
+
+    themes.sort_by(|(a, _), (b, _)| a.cmp(b));
+    themes
+}
+
+fn load_theme_dir(themes: &mut Vec<(String, Theme)>, directory: &str) {
+    if let Ok(entries) = std::fs::read_dir(directory) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.extension().and_then(|e| e.to_str()) == Some("toml")
@@ -110,9 +117,6 @@ pub fn load_all_themes() -> Vec<(String, Theme)> {
             }
         }
     }
-
-    themes.sort_by(|(a, _), (b, _)| a.cmp(b));
-    themes
 }
 
 pub fn configured_theme_name() -> String {

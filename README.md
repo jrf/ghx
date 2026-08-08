@@ -20,11 +20,13 @@ A TUI for browsing GitHub from the terminal, powered by the `gh` CLI.
 - Repo context mode — run `ghx` inside a repo to jump straight to its issues
 - Vim-style navigation (`j`/`k`, `Enter`, `Esc`)
 - Breadcrumb titles and context-aware action hints on every screen
-- Built-in and custom color themes
+- Built-in and custom color themes, including all Tokyo Night and Catppuccin flavors
 
 ### Theme roles
 
 Custom themes live in `~/.config/ghx/themes/`. Their `[ui]` section can assign `accent` for branded chrome, `selection` for active tabs and rows, `key` for shortcut and filter prompts, and `heading` for titles. Themes without the newer `selection` or `key` entries remain compatible through palette-based fallbacks.
+
+The built-in families include Tokyo Night (night, storm, moon, and day) and Catppuccin (latte, frappe, macchiato, and mocha), plus the existing classic, fire, matrix, monochrome, ocean, purple, sunset, and synthwave themes. The palettes come from [folke/tokyonight.nvim](https://github.com/folke/tokyonight.nvim/tree/main/lua/tokyonight/colors) and [catppuccin/palette](https://github.com/catppuccin/palette).
 
 ## Requirements
 
@@ -67,7 +69,7 @@ ghx              # jump straight to issues/PRs for this repo
 | `s` | Choose My Repos, Starred, or an organization |
 | `[` / `]` | Switch to the previous or next repository source |
 | `o` | Open in browser |
-| `r` | Toggle body-only reader in issue/PR detail |
+| `r` | Toggle body-only reader in issue/PR detail, or retry GitHub Lists after an error |
 | `m` | Mark the selected notification as read |
 | `/` | Filter the current list or edit repository search |
 | `A` | Switch the active GitHub CLI account and reload |

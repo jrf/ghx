@@ -17,9 +17,23 @@ fn run(args: &[&str]) -> Result<String> {
         .context("failed to run gh")?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("gh {}: {}", args.join(" "), stderr.trim());
+        let command = command_label(args);
+        let detail = stderr.trim();
+        if detail.is_empty() {
+            anyhow::bail!("{command} failed with {}", output.status);
+        }
+        anyhow::bail!("{command} failed: {detail}");
     }
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+fn command_label(args: &[&str]) -> String {
+    let mut label = String::from("gh");
+    for arg in args.iter().take(2) {
+        label.push(' ');
+        label.push_str(arg);
+    }
+    label
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -615,6 +629,14 @@ pub fn open_pr(repo: &str, number: u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn command_errors_do_not_expose_graphql_queries() {
+        let label = command_label(&["api", "graphql", "-f", "query={ viewer { login } }"]);
+
+        assert_eq!(label, "gh api graphql");
+        assert!(!label.contains("query="));
+    }
 
     fn notification(kind: &str, url: Option<&str>) -> Notification {
         Notification {

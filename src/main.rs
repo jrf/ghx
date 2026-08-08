@@ -359,6 +359,9 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> anyhow::Result<()> {
                     KeyCode::Char('m') if app.tab == Tab::Notifications => {
                         app.notif_list.mark_selected_read();
                     }
+                    KeyCode::Char('r') if app.tab == Tab::Lists => {
+                        app.lists_view.retry();
+                    }
                     KeyCode::Char('/') => match app.tab {
                         Tab::Repos => app.repo_list.filtering = true,
                         Tab::Lists => app.lists_view.filtering = true,
@@ -765,6 +768,17 @@ fn contextual_actions(app: &App) -> Vec<(&'static str, &'static str)> {
             ("Enter", "Apply"),
             ("Backspace", "Delete"),
             ("Esc", "Clear"),
+        ];
+    }
+
+    if app.screen == Screen::Home && app.tab == Tab::Lists && app.lists_view.has_error() {
+        return vec![
+            ("r", "Retry"),
+            ("Tab", "Next tab"),
+            ("A", "Account"),
+            ("a", "Actions"),
+            ("?", "Help"),
+            ("q", "Quit"),
         ];
     }
 

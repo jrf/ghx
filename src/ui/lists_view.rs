@@ -3,7 +3,7 @@ use ratatui::{
     Frame,
     layout::Rect,
     text::{Line, Span},
-    widgets::{List, ListItem, ListState},
+    widgets::{List, ListItem, ListState, Paragraph, Wrap},
 };
 use std::sync::mpsc;
 use std::thread;
@@ -53,6 +53,16 @@ impl ListsView {
             return;
         }
         self.load();
+    }
+
+    pub fn has_error(&self) -> bool {
+        self.error.is_some()
+    }
+
+    pub fn retry(&mut self) {
+        if !self.loading {
+            self.load();
+        }
     }
 
     fn load(&mut self) {
@@ -281,11 +291,17 @@ impl ListsView {
             return;
         }
         if let Some(ref err) = self.error {
-            let line = Line::from(Span::styled(
-                format!(" Error: {err}"),
-                Style::default().fg(red()),
-            ));
-            f.render_widget(line, area);
+            let message = vec![
+                Line::from(Span::styled(
+                    format!(" GitHub Lists unavailable: {err}"),
+                    Style::default().fg(red()),
+                )),
+                Line::from(vec![
+                    Span::styled(" r", style_key()),
+                    Span::styled(" Retry", style_dim()),
+                ]),
+            ];
+            f.render_widget(Paragraph::new(message).wrap(Wrap { trim: false }), area);
             return;
         }
 

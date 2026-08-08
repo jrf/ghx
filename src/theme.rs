@@ -48,6 +48,22 @@ pub fn load_all_themes() -> Vec<(String, Theme)> {
 
     // Embedded themes from the themes/ directory at compile time
     let embedded: &[(&str, &str)] = &[
+        (
+            "catppuccin-frappe",
+            include_str!("../themes/catppuccin-frappe.toml"),
+        ),
+        (
+            "catppuccin-latte",
+            include_str!("../themes/catppuccin-latte.toml"),
+        ),
+        (
+            "catppuccin-macchiato",
+            include_str!("../themes/catppuccin-macchiato.toml"),
+        ),
+        (
+            "catppuccin-mocha",
+            include_str!("../themes/catppuccin-mocha.toml"),
+        ),
         ("classic", include_str!("../themes/classic.toml")),
         ("fire", include_str!("../themes/fire.toml")),
         ("matrix", include_str!("../themes/matrix.toml")),
@@ -56,9 +72,18 @@ pub fn load_all_themes() -> Vec<(String, Theme)> {
         ("purple", include_str!("../themes/purple.toml")),
         ("sunset", include_str!("../themes/sunset.toml")),
         ("synthwave", include_str!("../themes/synthwave.toml")),
+        ("tokyo-night", include_str!("../themes/tokyo-night.toml")),
+        (
+            "tokyo-night-day",
+            include_str!("../themes/tokyo-night-day.toml"),
+        ),
         (
             "tokyo-night-moon",
             include_str!("../themes/tokyo-night-moon.toml"),
+        ),
+        (
+            "tokyo-night-storm",
+            include_str!("../themes/tokyo-night-storm.toml"),
         ),
     ];
 
@@ -200,7 +225,9 @@ fn parse_theme(content: &str) -> Option<Theme> {
     let accent = resolve("accent").unwrap_or(hex(0xc0, 0x99, 0xff));
 
     Some(Theme {
-        bg: color("bg").unwrap_or(hex(0x22, 0x24, 0x36)),
+        bg: resolve("background")
+            .or_else(|| color("bg"))
+            .unwrap_or(hex(0x22, 0x24, 0x36)),
         fg: resolve("text")
             .or_else(|| color("fg"))
             .unwrap_or(hex(0xc8, 0xd3, 0xf5)),
@@ -220,6 +247,7 @@ fn parse_theme(content: &str) -> Option<Theme> {
         yellow: color("yellow").unwrap_or(hex(0xff, 0xc7, 0x77)),
         purple: color("purple")
             .or_else(|| color("magenta"))
+            .or_else(|| color("mauve"))
             .unwrap_or(hex(0xfc, 0xa7, 0xea)),
         heading: resolve("heading").unwrap_or(hex(0x82, 0xaa, 0xff)),
     })
@@ -262,5 +290,34 @@ mod tests {
         assert_eq!(theme.purple, hex(0xfc, 0xa7, 0xea));
         assert_ne!(theme.accent, theme.selection);
         assert_ne!(theme.selection, theme.key);
+    }
+
+    #[test]
+    fn catppuccin_mocha_resolves_named_palette_roles() {
+        let theme = parse_theme(include_str!("../themes/catppuccin-mocha.toml")).unwrap();
+
+        assert_eq!(theme.bg, hex(0x1e, 0x1e, 0x2e));
+        assert_eq!(theme.fg, hex(0xcd, 0xd6, 0xf4));
+        assert_eq!(theme.accent, hex(0xcb, 0xa6, 0xf7));
+        assert_eq!(theme.selection, hex(0x89, 0xb4, 0xfa));
+        assert_eq!(theme.key, hex(0x89, 0xdc, 0xeb));
+        assert_eq!(theme.purple, hex(0xcb, 0xa6, 0xf7));
+    }
+
+    #[test]
+    fn loads_all_embedded_theme_flavors() {
+        let themes = load_all_themes();
+        for name in [
+            "catppuccin-frappe",
+            "catppuccin-latte",
+            "catppuccin-macchiato",
+            "catppuccin-mocha",
+            "tokyo-night",
+            "tokyo-night-day",
+            "tokyo-night-moon",
+            "tokyo-night-storm",
+        ] {
+            assert!(themes.iter().any(|(theme_name, _)| theme_name == name));
+        }
     }
 }

@@ -537,6 +537,7 @@ dependencies = [
  "ratatui",
  "serde",
  "serde_json",
+ "toml",
 ]
 
 [[package]]

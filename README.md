@@ -20,13 +20,18 @@ A TUI for browsing GitHub from the terminal, powered by the `gh` CLI.
 - Repo context mode — run `ghx` inside a repo to jump straight to its issues
 - Vim-style navigation (`j`/`k`, `Enter`, `Esc`)
 - Breadcrumb titles and context-aware action hints on every screen
-- Built-in and custom color themes, including all Tokyo Night and Catppuccin flavors
+- Explicit color-theme path with a manifest-backed picker
 
 ### Theme roles
 
-Shared custom themes live in `~/.config/themes/`. App-specific overrides can be placed in `~/.config/ghx/themes/`. Their `[ui]` section can assign `accent` for branded chrome, `selection` for active tabs and rows, `key` for shortcut and filter prompts, and `heading` for titles. Themes without the newer `selection` or `key` entries remain compatible through palette-based fallbacks.
+GHX reads two explicit paths from `~/.config/ghx/config.toml`:
 
-The built-in families include Tokyo Night (night, storm, moon, and day) and Catppuccin (latte, frappe, macchiato, and mocha), plus the existing classic, fire, matrix, monochrome, ocean, purple, sunset, and synthwave themes. The palettes come from [folke/tokyonight.nvim](https://github.com/folke/tokyonight.nvim/tree/main/lua/tokyonight/colors) and [catppuccin/palette](https://github.com/catppuccin/palette).
+```toml
+theme = "~/.config/themes/tokyo-night-moon.toml"
+theme_catalog = "~/.config/themes/catalog.toml"
+```
+
+`theme` is loaded directly at startup. `theme_catalog` contains a `themes = [...]` array of explicit file paths used by the picker. GHX never scans a theme directory. Picker changes apply to the current session only and never rewrite `config.toml`; edit `theme` directly to change the startup theme. The selected theme's `[ui]` section can assign `accent` for branded chrome, `selection` for active tabs and rows, `key` for shortcut and filter prompts, and `heading` for titles.
 
 ## Requirements
 

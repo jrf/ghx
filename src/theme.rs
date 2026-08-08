@@ -1,5 +1,6 @@
 use ratatui::style::Color;
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
 static THEME: RwLock<Option<Theme>> = RwLock::new(None);
@@ -33,120 +34,68 @@ pub fn set_theme(theme: Theme) {
 
 pub fn init() {
     let home = std::env::var("HOME").unwrap_or_default();
-    let name = read_config_theme(&home).unwrap_or_else(|| "tokyo-night-moon".into());
-    let themes = load_all_themes();
-    let theme = themes
-        .iter()
-        .find(|(n, _)| n == &name)
-        .map(|(_, t)| t.clone())
+    let theme = read_config_value(&home, "theme")
+        .and_then(|path| load_theme_path(&expand_home(&home, &path)))
         .unwrap_or_else(fallback);
     set_theme(theme);
 }
 
 pub fn load_all_themes() -> Vec<(String, Theme)> {
-    let mut themes = Vec::new();
-
-    // Embedded themes from the themes/ directory at compile time
-    let embedded: &[(&str, &str)] = &[
-        (
-            "catppuccin-frappe",
-            include_str!("../themes/catppuccin-frappe.toml"),
-        ),
-        (
-            "catppuccin-latte",
-            include_str!("../themes/catppuccin-latte.toml"),
-        ),
-        (
-            "catppuccin-macchiato",
-            include_str!("../themes/catppuccin-macchiato.toml"),
-        ),
-        (
-            "catppuccin-mocha",
-            include_str!("../themes/catppuccin-mocha.toml"),
-        ),
-        ("classic", include_str!("../themes/classic.toml")),
-        ("fire", include_str!("../themes/fire.toml")),
-        ("matrix", include_str!("../themes/matrix.toml")),
-        ("monochrome", include_str!("../themes/monochrome.toml")),
-        ("ocean", include_str!("../themes/ocean.toml")),
-        ("purple", include_str!("../themes/purple.toml")),
-        ("sunset", include_str!("../themes/sunset.toml")),
-        ("synthwave", include_str!("../themes/synthwave.toml")),
-        ("tokyo-night", include_str!("../themes/tokyo-night.toml")),
-        (
-            "tokyo-night-day",
-            include_str!("../themes/tokyo-night-day.toml"),
-        ),
-        (
-            "tokyo-night-moon",
-            include_str!("../themes/tokyo-night-moon.toml"),
-        ),
-        (
-            "tokyo-night-storm",
-            include_str!("../themes/tokyo-night-storm.toml"),
-        ),
-    ];
-
-    for (name, content) in embedded {
-        if let Some(theme) = parse_theme(content) {
-            themes.push((name.to_string(), theme));
-        }
-    }
-
-    // Load shared themes, then app-specific themes as overrides.
     let home = std::env::var("HOME").unwrap_or_default();
-    load_theme_dir(&mut themes, &format!("{home}/.config/themes"));
-    load_theme_dir(&mut themes, &format!("{home}/.config/ghx/themes"));
-
-    themes.sort_by(|(a, _), (b, _)| a.cmp(b));
+    let mut themes = read_config_value(&home, "theme_catalog")
+        .map(|path| load_theme_catalog(&expand_home(&home, &path), &home))
+        .unwrap_or_default();
+    if themes.is_empty() {
+        themes.push(("tokyo night moon".to_string(), fallback()));
+    }
     themes
 }
 
-fn load_theme_dir(themes: &mut Vec<(String, Theme)>, directory: &str) {
-    if let Ok(entries) = std::fs::read_dir(directory) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) == Some("toml")
-                && let Some(name) = path.file_stem().and_then(|s| s.to_str())
-                && let Ok(content) = std::fs::read_to_string(&path)
-                && let Some(theme) = parse_theme(&content)
-            {
-                // Remove existing embedded theme with same name
-                themes.retain(|(n, _)| n != name);
-                themes.push((name.to_string(), theme));
-            }
-        }
-    }
+fn load_theme_catalog(catalog_path: &Path, home: &str) -> Vec<(String, Theme)> {
+    let Ok(content) = std::fs::read_to_string(catalog_path) else {
+        return Vec::new();
+    };
+    let Ok(catalog) = content.parse::<toml::Value>() else {
+        return Vec::new();
+    };
+    catalog
+        .get("themes")
+        .and_then(toml::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(toml::Value::as_str)
+        .filter_map(|configured_path| {
+            let path = expand_home(home, configured_path);
+            let theme = load_theme_path(&path)?;
+            Some((theme_name(&path), theme))
+        })
+        .collect()
+}
+
+fn load_theme_path(path: &Path) -> Option<Theme> {
+    let content = std::fs::read_to_string(path).ok()?;
+    parse_theme(&content)
+}
+
+fn expand_home(home: &str, configured_path: &str) -> PathBuf {
+    configured_path
+        .strip_prefix("~/")
+        .map(|rest| Path::new(home).join(rest))
+        .unwrap_or_else(|| PathBuf::from(configured_path))
+}
+
+fn theme_name(path: &Path) -> String {
+    path.file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or("theme")
+        .replace('-', " ")
 }
 
 pub fn configured_theme_name() -> String {
     let home = std::env::var("HOME").unwrap_or_default();
-    read_config_theme(&home).unwrap_or_else(|| "tokyo-night-moon".into())
-}
-
-pub fn save_config_theme(name: &str) {
-    let home = std::env::var("HOME").unwrap_or_default();
-    let dir = format!("{home}/.config/ghx");
-    let path = format!("{dir}/config.toml");
-
-    // Read existing config, replace or add theme line
-    let content = std::fs::read_to_string(&path).unwrap_or_default();
-    let mut lines: Vec<String> = Vec::new();
-    let mut found = false;
-    for line in content.lines() {
-        if line.trim().starts_with("theme") {
-            lines.push(format!("theme = \"{name}\""));
-            found = true;
-        } else {
-            lines.push(line.to_string());
-        }
-    }
-    if !found {
-        lines.push(format!("theme = \"{name}\""));
-    }
-
-    let _ = std::fs::create_dir_all(&dir);
-    let _ = std::fs::write(&path, lines.join("\n") + "\n");
+    read_config_value(&home, "theme")
+        .map(|path| theme_name(&expand_home(&home, &path)))
+        .unwrap_or_else(|| "tokyo night moon".into())
 }
 
 fn fallback() -> Theme {
@@ -166,19 +115,19 @@ fn fallback() -> Theme {
     }
 }
 
-fn read_config_theme(home: &str) -> Option<String> {
+fn read_config_value(home: &str, requested_key: &str) -> Option<String> {
     let path = format!("{home}/.config/ghx/config.toml");
     let content = std::fs::read_to_string(path).ok()?;
     for line in content.lines() {
         let line = line.trim();
-        if let Some(rest) = line.strip_prefix("theme") {
-            let rest = rest.trim_start();
-            if let Some(rest) = rest.strip_prefix('=') {
-                let val = rest.trim().trim_matches('"').trim_matches('\'');
-                if !val.is_empty() {
-                    return Some(val.to_string());
-                }
-            }
+        if line.starts_with('#') {
+            continue;
+        }
+        if let Some((key, value)) = parse_kv(line)
+            && key == requested_key
+            && !value.is_empty()
+        {
+            return Some(value.to_string());
         }
     }
     None
@@ -281,11 +230,38 @@ const fn hex(r: u8, g: u8, b: u8) -> Color {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
     use super::*;
+
+    const SHARED_THEME: &str = r##"
+[colors]
+bg = "#222436"
+fg = "#c8d3f5"
+fg_dim = "#636da6"
+fg_muted = "#3b4261"
+magenta = "#c099ff"
+blue = "#82aaff"
+cyan = "#86e1fc"
+green = "#c3e88d"
+yellow = "#ffc777"
+purple = "#fca7ea"
+red = "#ff757f"
+
+[ui]
+background = "bg"
+text = "fg"
+text_dim = "fg_dim"
+accent = "magenta"
+selection = "blue"
+key = "cyan"
+border = "fg_muted"
+heading = "blue"
+"##;
 
     #[test]
     fn tokyo_night_moon_assigns_distinct_semantic_colors() {
-        let theme = parse_theme(include_str!("../themes/tokyo-night-moon.toml")).unwrap();
+        let theme = parse_theme(SHARED_THEME).unwrap();
 
         assert_eq!(theme.accent, hex(0xc0, 0x99, 0xff));
         assert_eq!(theme.selection, hex(0x82, 0xaa, 0xff));
@@ -297,31 +273,36 @@ mod tests {
     }
 
     #[test]
-    fn catppuccin_mocha_resolves_named_palette_roles() {
-        let theme = parse_theme(include_str!("../themes/catppuccin-mocha.toml")).unwrap();
+    fn catalog_loads_only_explicit_theme_paths() {
+        let root = test_root();
+        let themes_dir = root.join("themes");
+        std::fs::create_dir_all(&themes_dir).unwrap();
+        std::fs::write(themes_dir.join("synthetic-theme.toml"), SHARED_THEME).unwrap();
+        std::fs::write(themes_dir.join("unlisted.toml"), SHARED_THEME).unwrap();
+        let catalog = root.join("catalog.toml");
+        std::fs::write(
+            &catalog,
+            format!(
+                "themes = [\"{}\"]\n",
+                themes_dir.join("synthetic-theme.toml").display()
+            ),
+        )
+        .unwrap();
 
-        assert_eq!(theme.bg, hex(0x1e, 0x1e, 0x2e));
-        assert_eq!(theme.fg, hex(0xcd, 0xd6, 0xf4));
-        assert_eq!(theme.accent, hex(0xcb, 0xa6, 0xf7));
-        assert_eq!(theme.selection, hex(0x89, 0xb4, 0xfa));
-        assert_eq!(theme.key, hex(0x89, 0xdc, 0xeb));
-        assert_eq!(theme.purple, hex(0xcb, 0xa6, 0xf7));
+        let themes = load_theme_catalog(&catalog, root.to_str().unwrap());
+        assert_eq!(themes.len(), 1);
+        assert_eq!(themes[0].0, "synthetic theme");
+        assert_eq!(themes[0].1.accent, hex(0xc0, 0x99, 0xff));
+
+        std::fs::remove_dir_all(root).unwrap();
     }
 
-    #[test]
-    fn loads_all_embedded_theme_flavors() {
-        let themes = load_all_themes();
-        for name in [
-            "catppuccin-frappe",
-            "catppuccin-latte",
-            "catppuccin-macchiato",
-            "catppuccin-mocha",
-            "tokyo-night",
-            "tokyo-night-day",
-            "tokyo-night-moon",
-            "tokyo-night-storm",
-        ] {
-            assert!(themes.iter().any(|(theme_name, _)| theme_name == name));
-        }
+    fn test_root() -> std::path::PathBuf {
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        std::env::temp_dir().join(format!(
+            "ghx-theme-test-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ))
     }
 }

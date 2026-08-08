@@ -126,8 +126,6 @@ impl App {
 
     pub fn theme_picker_confirm(&mut self) {
         self.show_theme_picker = false;
-        let name = &self.themes[self.theme_index].0;
-        theme::save_config_theme(name);
     }
 
     pub fn theme_picker_cancel(&mut self) {
